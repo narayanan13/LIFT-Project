@@ -1,12 +1,14 @@
 import { NavLink } from "react-router-dom";
+import { useStytchSession } from "@stytch/stytch-react";
 
-export default () => {
+export default ({ handleLogout }) => {
+    const session = useStytchSession();
     return (
         <nav>
             <NavLink to="/">Home</NavLink>
-            <NavLink to="/login">Login</NavLink>
-            <NavLink to="/account">Account</NavLink>
-            <button>Logout</button>
+            {!session && <NavLink to="/login">Login</NavLink>}
+            {session && <NavLink to="/account">Account</NavLink>}
+            {session && <button onClick={handleLogout}>Logout</button>}
         </nav>
     )
 }
