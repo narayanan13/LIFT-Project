@@ -1,72 +1,13 @@
-*{
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: sans-serif;
-}
-
 body {
-    text-align: center;
-    background: #1f2430;
-    color: #FFFFFF;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-nav{
-    padding-top: 1.5rem;
-    padding-bottom: 1.5rem;
-    margin-bottom: 4rem;
-}
-
-nav a, nav button {
-    margin: 0 0.5rem;
-    color: deeppink;
-    text-decoration: none;
-    cursor: pointer;
-    font-size: 1.125rem;
-}
-
-nav a.active {
-    color:#FFFFFF;
-    font-weight: 700;
-}
-
-form {
-    max-width: 480px;
-    margin: 2rem auto;
-    padding: 2rem;
-    background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 0.5rem;
-}
-
-input, button {
-    appearance: none;
-    border: none;
-    outline: none;
-    background: none;
-}
-
-input[type="email"] {
-    width: 100%;
-    padding: 0.5rem;
-    border-bottom: 2px solid #fff;
-    color: #fff;
-    font-size: 1.2rem;
-    text-align: center;
-    margin-bottom: 1rem;
-    transition: 0.4s;
-}
-
-input[type="email"]:focus {
-    border-color: deeppink;
-}
-
-input[type="submit"] {
-    width: 100%;
-    padding: 0.5rem;
-    color: #fff;
-    font-size: 1.2rem;
-    background-color: deeppink;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    transition: 0.4s;
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
 }
