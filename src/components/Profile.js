@@ -17,7 +17,7 @@ const Profile = () => {
                 <header className="header">
                     <div className="logo-container">
                         <div className="logo-wrapper">
-                            <img src={logo} alt="Logo" className="logo" />
+                            <img src={logo} alt="Profile" className="logo" />
                         </div>
                         <span className="org-name">Leading India's Future Today</span>
                     </div>
