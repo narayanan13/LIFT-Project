@@ -16,15 +16,36 @@ const Authenticate = () => {
   return (
     <div>
       {isAuthenticated ? (
-        <button 
-          style={{ background: 'none', border: 'none', color: 'black', fontSize: '1.2rem', fontFamily: 'Red Hat Display', fontWeight: 'bold' }} 
+        <button
+          style={{
+            background: "none",
+            border: "none",
+            color: "black",
+            fontSize: "1.2rem",
+            fontFamily: "Red Hat Display",
+            fontWeight: "bold",
+          }}
           onClick={() => navigate("/profile")}
         >
           Go to Profile
         </button>
       ) : (
-        <button 
-          style={{ background: 'none', border: 'none', color: 'black', fontSize: '1.2rem', fontFamily: 'Red Hat Display', fontWeight: 'bold' }} 
+        <button
+          style={{
+            backgroundColor: "#FDFDFD" /*egg white*/,
+            border: "2px solid brown",
+            color: "brown!important",
+            padding: "5px 20px",
+            textAlign: "center",
+            display: "inline-block",
+            fontSize: "16px",
+            margin: "4px 2px",
+            cursor: "pointer",
+            fontfamily: "Red Hat Display",
+            borderRadius: "30px",
+            height: "30px",
+            width: "90px",
+          }}
           onClick={() => loginWithRedirect()}
         >
           Login

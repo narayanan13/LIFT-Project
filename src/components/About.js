@@ -31,8 +31,8 @@ const About = () => {
         value relationships and meaningful connections.
       </p>
       <p style={paragraphStyles}>
-        Whether you're here to share experiences, seek advice, or just feel
-        part of something bigger, you're in the right place.
+        Whether you're here to share experiences, seek advice, or just feel part
+        of something bigger, you're in the right place.
       </p>
     </div>
   );
