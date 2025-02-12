@@ -5,6 +5,8 @@ import "../App.css";
 
 const Profile = () => {
   const { user, isAuthenticated, isLoading, logout } = useAuth0();
+  const url = "https://lifthome20.vercel.app/";
+  // const url = "http://localhost:3000/";
 
   if (isLoading) {
     return <div>Loading ...</div>;
@@ -40,7 +42,7 @@ const Profile = () => {
                 width: "90px",
               }}
               onClick={() =>
-                logout({ logoutParams: { returnTo: "http://localhost:3000/" } })
+                logout({ logoutParams: { returnTo: url } })
               }
             >
               Logout
