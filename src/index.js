@@ -7,13 +7,16 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { Auth0Provider } from '@auth0/auth0-react';
 
+const url = "https://lifthome20.vercel.app/home";
+// const url = "http://localhost:3000/home";
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <Auth0Provider
     domain="dev-unvq3qurpapcwc35.us.auth0.com"
     clientId="C3q12Q1iNHtt4Onn2vCphnlj7Xllceej"
     authorizationParams={{
-      redirect_uri: 'http://localhost:3000/home',
+      redirect_uri: url,
     }}
   >
     <React.StrictMode>

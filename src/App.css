@@ -6,8 +6,9 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background: url('https://source.unsplash.com/1600x900/?family,home') no-repeat center center/cover;
-  color: white;
+  background: url("https://source.unsplash.com/1600x900/?family,home") no-repeat
+    center center/cover;
+  background-color: #fdfdfd;
   padding-top: 70px; /* Adjust for fixed header */
 }
 
@@ -18,7 +19,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 15px 20px;
-  background: #FEBB02;
+  background: #febb02;
   position: fixed;
   top: 0;
   left: 0;
