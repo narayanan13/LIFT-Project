@@ -222,6 +222,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .insert([{
           ...invitationData,
           token,
+          role: invitationData.role || 'user', // Default to 'user' if not provided
           expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
         }])
         .select()
@@ -364,7 +365,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return false;
       }
 
-      // Update invitation with new token and expiry
+      // Update invitation with new token and expiry (keep existing role)
       const { data, error } = await supabase
         .from('invitations')
         .update({

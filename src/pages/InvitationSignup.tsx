@@ -20,6 +20,7 @@ const InvitationSignup: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [validatingToken, setValidatingToken] = useState(true);
   const [tokenValid, setTokenValid] = useState(false);
+  const [invitationRole, setInvitationRole] = useState<'admin' | 'user'>('user');
 
   useEffect(() => {
     const validateToken = async () => {
@@ -44,6 +45,7 @@ const InvitationSignup: React.FC = () => {
         } else {
           setTokenValid(true);
           setEmail(invitation.email);
+          setInvitationRole(invitation.role);
         }
       } catch (error) {
         setError('Error validating invitation token.');
@@ -85,7 +87,7 @@ const InvitationSignup: React.FC = () => {
         options: {
           data: {
             full_name: fullName,
-            role: 'user'
+            role: invitationRole
           }
         }
       });

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Search, Edit2, Trash2, Users, Mail, Shield, UserCheck, Send, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { Search, Trash2, Users, Mail, Shield, UserCheck, Send, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -17,7 +17,8 @@ const AdminUsers: React.FC = () => {
   const [inviteFormData, setInviteFormData] = useState({
     email: '',
     fullName: '',
-    personalMessage: ''
+    personalMessage: '',
+    role: 'user' as 'admin' | 'user'
   });
 
   const filteredUsers = users.filter(user => 
@@ -46,7 +47,8 @@ const AdminUsers: React.FC = () => {
     try {
       const success = await addInvitation({
         email: inviteFormData.email,
-        invited_by: user?.id || null,
+        invited_by: user?.id ?? null,
+        role: inviteFormData.role,
         used: false,
         expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         token: '' // Will be generated in the service
@@ -106,7 +108,8 @@ const AdminUsers: React.FC = () => {
     setInviteFormData({
       email: '',
       fullName: '',
-      personalMessage: ''
+      personalMessage: '',
+      role: 'user'
     });
     setShowInviteModal(false);
   };
@@ -375,6 +378,24 @@ const AdminUsers: React.FC = () => {
                   placeholder="John Doe (optional)"
                   disabled={isLoading}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Role *
+                </label>
+                <select
+                  value={inviteFormData.role}
+                  onChange={(e) => setInviteFormData(prev => ({ ...prev, role: e.target.value as 'admin' | 'user' }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={isLoading}
+                >
+                  <option value="user">Alumni</option>
+                  <option value="admin">Administrator</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Alumni can view and manage their contributions. Administrators have full access to manage users, expenses, and reports.
+                </p>
               </div>
 
               <div>

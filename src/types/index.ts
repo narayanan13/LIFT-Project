@@ -39,7 +39,8 @@ export interface Invitation {
   id: string;
   email: string;
   token: string;
-  invited_by: string;
+  invited_by: string | null;
+  role: 'admin' | 'user';
   used: boolean;
   expires_at: string;
   created_at: string;
