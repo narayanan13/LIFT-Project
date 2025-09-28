@@ -217,14 +217,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // Add invitation to database
+      const invitationToInsert: any = {
+        email: invitationData.email,
+        invited_by: invitationData.invited_by,
+        used: invitationData.used,
+        expires_at: invitationData.expires_at,
+        token
+      };
+
+      // Only add role if it exists in the invitation data (migration applied)
+      if (invitationData.role) {
+        invitationToInsert.role = invitationData.role;
+      }
+
       const { data, error } = await supabase
         .from('invitations')
-        .insert([{
-          ...invitationData,
-          token,
-          role: invitationData.role || 'user', // Default to 'user' if not provided
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
-        }])
+        .insert([invitationToInsert])
         .select()
         .single();
 
@@ -365,13 +373,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return false;
       }
 
-      // Update invitation with new token and expiry (keep existing role)
+      // Update invitation with new token and expiry
+      const updateData: any = {
+        token: newToken,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
+      };
+
+      // If the invitation has a role, preserve it (migration applied)
+      if (invitation.role) {
+        updateData.role = invitation.role;
+      }
+
       const { data, error } = await supabase
         .from('invitations')
-        .update({
-          token: newToken,
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
-        })
+        .update(updateData)
         .eq('id', id)
         .select()
         .single();

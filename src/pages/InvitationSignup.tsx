@@ -34,7 +34,7 @@ const InvitationSignup: React.FC = () => {
         // Validate token against Supabase invitations table
         const { data: invitation, error } = await supabase
           .from('invitations')
-          .select('*')
+          .select('id, email, token, invited_by, used, expires_at, created_at')
           .eq('token', token)
           .eq('used', false)
           .gt('expires_at', new Date().toISOString())
@@ -45,7 +45,8 @@ const InvitationSignup: React.FC = () => {
         } else {
           setTokenValid(true);
           setEmail(invitation.email);
-          setInvitationRole(invitation.role);
+          // Default to 'user' role if role column doesn't exist yet
+          setInvitationRole('user');
         }
       } catch (error) {
         setError('Error validating invitation token.');
