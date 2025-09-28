@@ -70,7 +70,7 @@ A secure, invite-only platform for alumni contribution and expense tracking with
 The edge function should already be deployed. If not, it will auto-deploy when you first use it.
 
 #### **Step 3: Test Real Email Sending**
-1. **Send an invitation** to `nk13.dev@gmail.com`
+1. **Send an invitation** to `your-mail@gmail.com`
 2. **Check the actual email inbox** - you should receive a beautiful professional email!
 3. **No more console logging** - real emails will be sent
 
@@ -98,7 +98,7 @@ The edge function should already be deployed. If not, it will auto-deploy when y
 
 **After adding the API key to Supabase:**
 
-1. **Send an invitation** to `nk13.dev@gmail.com`
+1. **Send an invitation** to `your-mail@gmail.com`
 2. **Check the actual email inbox** (not console anymore)
 3. **You'll receive**:
    - Beautiful professional HTML email
@@ -216,7 +216,7 @@ npm run dev
    your resend api key
    ```
 3. **Optional: Verify your domain** (for custom from address)
-4. **Test email delivery** to nk13.dev@gmail.com
+4. **Test email delivery** to your-mail@gmail.com
 
 ### **Frontend Deployment**
 1. Build the application: `npm run build`
