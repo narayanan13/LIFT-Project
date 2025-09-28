@@ -45,48 +45,46 @@ const AppContent: React.FC = () => {
         path="/*"
         element={
           <ProtectedRoute>
-            <DataProvider>
-              <Layout>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/expenses" element={<Expenses />} />
-                  <Route path="/my-contributions" element={<MyContributions />} />
-                  <Route 
-                    path="/admin/contributions" 
-                    element={
-                      <AdminRoute>
-                        <AdminContributions />
-                      </AdminRoute>
-                    } 
-                  />
-                  <Route 
-                    path="/admin/expenses" 
-                    element={
-                      <AdminRoute>
-                        <AdminExpenses />
-                      </AdminRoute>
-                    } 
-                  />
-                  <Route 
-                    path="/admin/users" 
-                    element={
-                      <AdminRoute>
-                        <AdminUsers />
-                      </AdminRoute>
-                    } 
-                  />
-                  <Route 
-                    path="/admin/reports" 
-                    element={
-                      <AdminRoute>
-                        <AdminReports />
-                      </AdminRoute>
-                    } 
-                  />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </Layout>
-            </DataProvider>
+            <Layout>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/expenses" element={<Expenses />} />
+                <Route path="/my-contributions" element={<MyContributions />} />
+                <Route
+                  path="/admin/contributions"
+                  element={
+                    <AdminRoute>
+                      <AdminContributions />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/expenses"
+                  element={
+                    <AdminRoute>
+                      <AdminExpenses />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/users"
+                  element={
+                    <AdminRoute>
+                      <AdminUsers />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/reports"
+                  element={
+                    <AdminRoute>
+                      <AdminReports />
+                    </AdminRoute>
+                  }
+                />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Layout>
           </ProtectedRoute>
         }
       />
@@ -97,9 +95,11 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <AppContent />
-      </Router>
+      <DataProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </DataProvider>
     </AuthProvider>
   );
 }
