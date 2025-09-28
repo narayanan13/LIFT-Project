@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Eye, EyeOff, Users, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Users, AlertCircle, Home } from 'lucide-react';
 
 const LoginForm: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -42,7 +43,14 @@ const LoginForm: React.FC = () => {
               <Users className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome Back</h1>
-            <p className="text-gray-600">Sign in to your alumni network account</p>
+            <p className="text-gray-600 mb-4">Sign in to your alumni network account</p>
+            <Link
+              to="/"
+              className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              <Home className="w-4 h-4 mr-1" />
+              Back to Home
+            </Link>
           </div>
 
           {error && (

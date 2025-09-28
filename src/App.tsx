@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DataProvider } from './contexts/DataContext';
 import Layout from './components/Layout/Layout';
 import LoginForm from './components/Auth/LoginForm';
+import LandingPage from './pages/LandingPage';
 import InvitationSignup from './pages/InvitationSignup';
 import AuthCallback from './pages/AuthCallback';
 import Dashboard from './pages/Dashboard';
@@ -38,11 +39,12 @@ const AppContent: React.FC = () => {
 
   return (
     <Routes>
-      <Route path="/login" element={!user ? <LoginForm /> : <Navigate to="/" replace />} />
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={!user ? <LoginForm /> : <Navigate to="/dashboard" replace />} />
       <Route path="/invite/:token" element={<InvitationSignup />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route
-        path="/*"
+        path="/dashboard/*"
         element={
           <ProtectedRoute>
             <Layout>
@@ -88,6 +90,7 @@ const AppContent: React.FC = () => {
           </ProtectedRoute>
         }
       />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };
