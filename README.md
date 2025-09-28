@@ -62,7 +62,7 @@ A secure, invite-only platform for alumni contribution and expense tracking with
 4. Add:
    ```
    Name: RESEND_API_KEY
-   Value: re_G8yqgRYd_B2BnSKyBvA4PnQFz3HLejhG9
+   Value: your_resend_api_key
    ```
 5. Click **"Save"**
 
