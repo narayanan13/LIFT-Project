@@ -213,7 +213,7 @@ npm run dev
 1. **✅ DONE: Get Resend API key** (you have: re_G8yqgRYd_B2BnSKyBvA4PnQFz3HLejhG9)
 2. **🎯 NEXT: Add to Supabase environment variables**:
    ```
-   RESEND_API_KEY=re_G8yqgRYd_B2BnSKyBvA4PnQFz3HLejhG9
+   your resend api key
    ```
 3. **Optional: Verify your domain** (for custom from address)
 4. **Test email delivery** to nk13.dev@gmail.com
