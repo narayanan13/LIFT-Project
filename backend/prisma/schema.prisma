@@ -1,0 +1,53 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  contributions Contribution[]
+}
+
+model Contribution {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  amount    Float
+  date      DateTime
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  amount      Float
+  purpose     String
+  description String?
+  date        DateTime
+  category    String
+  event       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  createdAt DateTime @default(now()) @map("created_at")
+}
+
+enum Role {
+  ADMIN
+  ALUMNI
+}

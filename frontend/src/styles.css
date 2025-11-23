@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; }
+
+/* small utility */
+.card { @apply bg-white shadow-lg p-6 rounded-lg border border-soft-peach transition-shadow hover:shadow-xl }
+
+.gradient-bg { @apply bg-gradient-to-br from-very-light-peach to-soft-peach }
+
+.btn-primary { @apply bg-deep-red hover:bg-warm-red text-white font-semibold py-2 px-4 rounded-lg transition-colors }
+
+.btn-secondary { @apply bg-soft-peach hover:bg-warm-red text-deep-red font-semibold py-2 px-4 rounded-lg transition-colors }
+
+.input-field { @apply w-full p-3 border border-soft-peach rounded-lg focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent }
+
+.text-gradient { @apply bg-gradient-to-r from-deep-red to-bright-orange bg-clip-text text-transparent }
+
+.stat-card { @apply bg-white shadow-lg p-6 rounded-lg border border-soft-peach text-center transition-transform hover:scale-105 }
+
+.stat-value { @apply text-3xl font-bold text-deep-red }
+
+.stat-label { @apply text-sm text-soft-peach uppercase tracking-wide }
