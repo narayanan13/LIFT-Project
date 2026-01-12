@@ -32,6 +32,7 @@ export default function DashboardLayout({ links, role, children }){
     { to: '/admin/overview', label: 'Overview' },
     { to: '/admin/users', label: 'Users' },
     { to: '/admin/contributions', label: 'Contributions' },
+    { to: '/admin/events', label: 'Events/Groups' },
     { to: '/admin/expenses', label: 'Expenses' },
   ]
   const alumniLinks = [

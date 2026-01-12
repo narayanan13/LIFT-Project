@@ -29,6 +29,15 @@ model Contribution {
   createdAt DateTime @default(now()) @map("created_at")
 }
 
+model Event {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  date        DateTime?
+  createdAt   DateTime @default(now()) @map("created_at")
+  expenses    Expense[]
+}
+
 model Expense {
   id          String   @id @default(cuid())
   amount      Float
@@ -36,7 +45,8 @@ model Expense {
   description String?
   date        DateTime
   category    String
-  event       String?
+  eventId     String?
+  event       Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now()) @map("created_at")
 }
 

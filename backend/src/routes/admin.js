@@ -58,22 +58,127 @@ router.get('/contributions', async (req, res) => {
   res.json(list);
 });
 
+// Events/Groups
+router.post('/events', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { name, description, date } = req.body;
+  if (!name) return res.status(400).json({ error: 'Event name is required' });
+  try {
+    const event = await prisma.event.create({ data: { name, description, date: date ? new Date(date) : null } });
+    res.json(event);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create event', detail: err.message });
+  }
+});
+
+router.get('/events', authRequired, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const events = await prisma.event.findMany({ include: { expenses: true }, orderBy: { date: 'desc' } });
+    res.json(events);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch events', detail: err.message });
+  }
+});
+
+router.get('/events/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const event = await prisma.event.findUnique({ where: { id }, include: { expenses: true } });
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    res.json(event);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch event', detail: err.message });
+  }
+});
+
+router.put('/events/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  const { name, description, date } = req.body;
+  try {
+    const event = await prisma.event.update({ where: { id }, data: { name, description, date: date ? new Date(date) : undefined } });
+    res.json(event);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update event', detail: err.message });
+  }
+});
+
+router.delete('/events/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Remove event association from expenses
+    await prisma.expense.updateMany({ where: { eventId: id }, data: { eventId: null } });
+    // Delete the event
+    const event = await prisma.event.delete({ where: { id } });
+    res.json(event);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete event', detail: err.message });
+  }
+});
+
 // Expenses
-router.post('/expenses', async (req, res) => {
-  const { amount, purpose, description, date, category, event } = req.body;
+router.post('/expenses', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { amount, purpose, description, date, category, eventId } = req.body;
   if (!amount || !purpose || !date || !category) return res.status(400).json({ error: 'Missing required fields' });
   if (isNaN(amount) || Number(amount) <= 0) return res.status(400).json({ error: 'Negative values are not allowed' });
   try {
-    const e = await prisma.expense.create({ data: { amount: Number(amount), purpose, description, date: new Date(date), category, event } });
+    const e = await prisma.expense.create({ data: { amount: Number(amount), purpose, description, date: new Date(date), category, eventId: eventId || null } });
     res.json(e);
   } catch (err) {
     res.status(500).json({ error: 'Failed to add expense', detail: err.message });
   }
 });
 
-router.get('/expenses', async (req, res) => {
-  const list = await prisma.expense.findMany({ orderBy: { date: 'desc' } });
-  res.json(list);
+router.post('/expenses/bulk', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { expenses } = req.body;
+  if (!Array.isArray(expenses) || expenses.length === 0) return res.status(400).json({ error: 'Expenses array is required' });
+  
+  try {
+    const createdExpenses = await Promise.all(
+      expenses.map(exp => 
+        prisma.expense.create({
+          data: {
+            amount: Number(exp.amount),
+            purpose: exp.purpose,
+            description: exp.description,
+            date: new Date(exp.date),
+            category: exp.category,
+            eventId: exp.eventId || null
+          }
+        })
+      )
+    );
+    res.json(createdExpenses);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add expenses', detail: err.message });
+  }
+});
+
+router.get('/expenses', authRequired, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const list = await prisma.expense.findMany({ include: { event: true }, orderBy: { date: 'desc' } });
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch expenses', detail: err.message });
+  }
+});
+
+router.get('/expenses/event/:eventId', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { eventId } = req.params;
+  try {
+    const expenses = await prisma.expense.findMany({ where: { eventId }, include: { event: true }, orderBy: { date: 'desc' } });
+    res.json(expenses);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch expenses', detail: err.message });
+  }
+});
+
+router.delete('/expenses/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const expense = await prisma.expense.delete({ where: { id } });
+    res.json(expense);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete expense', detail: err.message });
+  }
 });
 
 // Announcements

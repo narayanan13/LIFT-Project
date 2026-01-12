@@ -10,6 +10,7 @@ import AdminOverview from './pages/admin/Overview'
 import AdminUsers from './pages/admin/Users'
 import AdminContributions from './pages/admin/Contributions'
 import AdminExpenses from './pages/admin/Expenses'
+import AdminEvents from './pages/admin/Events'
 import AdminAnnouncements from './pages/admin/Announcements'
 import AdminReports from './pages/admin/Reports'
 import AlumniReports from './pages/alumni/Reports'
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="overview" element={<AdminDashboard />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="contributions" element={<AdminContributions />} />
+          <Route path="events" element={<AdminEvents />} />
           <Route path="expenses" element={<AdminExpenses />} />
           <Route path="announcements" element={<AdminAnnouncements />} />
           <Route path="reports" element={<AdminReports />} />

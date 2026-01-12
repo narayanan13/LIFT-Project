@@ -72,7 +72,7 @@ export default function AdminContributions(){
                 <div className="font-semibold">{c.user?.name}</div>
                 <div className="text-sm text-gray-500">{new Date(c.date).toLocaleDateString()}</div>
               </div>
-              <div className="font-semibold text-green-600">${c.amount}</div>
+            <div className="font-semibold text-green-600">₹{c.amount}</div>
             </div>
             {c.notes && <div className="text-sm text-gray-600 mt-1">{c.notes}</div>}
           </div>
