@@ -8,6 +8,7 @@ export default function AlumniContributions() {
   const [loading, setLoading] = useState(true);
 
   const [newAmount, setNewAmount] = useState('');
+  const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState('');
   const [toastMessage, setToastMessage] = useState('');
@@ -39,11 +40,12 @@ export default function AlumniContributions() {
     }
     setAdding(true);
     try {
-      await api.post('/alumni/contributions', { amount: Number(newAmount) });
+      await api.post('/alumni/contributions', { amount: Number(newAmount), date: newDate });
       setToastMessage('Contribution added successfully');
       setToastType('success');
       setToastVisible(true);
       setNewAmount('');
+      setNewDate(new Date().toISOString().split('T')[0]); // Reset to today's date
       await fetchContributions();
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to add contribution', 'error');
@@ -108,22 +110,31 @@ export default function AlumniContributions() {
         ) : (
           <>
             {/* Contribution addition form */}
-            <div className="mb-8 p-4 bg-white rounded shadow max-w-sm">
+            <div className="mb-8 p-4 bg-white rounded shadow max-w-md">
               <h2 className="text-xl font-semibold mb-4">Add Contribution</h2>
-              <form onSubmit={handleAddContribution} className="flex items-center space-x-4">
-                <input
-                  type="number"
-                  placeholder="Amount"
-                  value={newAmount}
-                  min={0}
-                  onChange={e => setNewAmount(e.target.value)}
-                  className="border border-soft-peach rounded px-3 py-2 flex-grow"
-                  disabled={adding}
-                />
+              <form onSubmit={handleAddContribution} className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
+                  <input
+                    type="number"
+                    placeholder="Amount"
+                    value={newAmount}
+                    min={0}
+                    onChange={e => setNewAmount(e.target.value)}
+                    className="border border-soft-peach rounded px-3 py-2 flex-grow"
+                    disabled={adding}
+                  />
+                  <input
+                    type="date"
+                    value={newDate}
+                    onChange={e => setNewDate(e.target.value)}
+                    className="border border-soft-peach rounded px-3 py-2 flex-grow sm:flex-grow-0"
+                    disabled={adding}
+                  />
+                </div>
                 <button
                   type="submit"
                   disabled={adding}
-                  className="bg-deep-red hover:bg-warm-red text-white px-4 py-2 rounded"
+                  className="bg-deep-red hover:bg-warm-red text-white px-4 py-2 rounded w-full"
                 >
                   {adding ? 'Adding...' : 'Add'}
                 </button>

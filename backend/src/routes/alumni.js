@@ -22,16 +22,24 @@ router.get('/contributions', async (req, res) => {
 
 // New route to add contribution
 router.post('/contributions', async (req, res) => {
-  const { amount } = req.body;
+  const { amount, date } = req.body;
   if (!amount || isNaN(amount) || amount <= 0) {
     return res.status(400).json({ error: 'Invalid amount' });
+  }
+  let contributionDate = new Date();
+  if (date) {
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+    contributionDate = parsedDate;
   }
   try {
     const contribution = await prisma.contribution.create({
       data: {
         userId: req.user.id,
         amount: Number(amount),
-        date: new Date()
+        date: contributionDate
       }
     });
     res.status(201).json(contribution);
