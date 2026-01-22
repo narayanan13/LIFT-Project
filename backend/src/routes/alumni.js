@@ -15,12 +15,28 @@ router.get('/me', async (req, res) => {
 });
 
 router.get('/contributions', async (req, res) => {
-  const contributions = await prisma.contribution.findMany({ where: { userId: req.user.id }, orderBy: { date: 'desc' } });
-  const total = contributions.reduce((s, c) => s + c.amount, 0);
-  res.json({ total, contributions });
+  const contributions = await prisma.contribution.findMany({
+    where: { userId: req.user.id },
+    orderBy: { date: 'desc' }
+  });
+
+  // Calculate totals based on status
+  const approvedTotal = contributions
+    .filter(c => c.status === 'APPROVED')
+    .reduce((s, c) => s + c.amount, 0);
+
+  const pendingTotal = contributions
+    .filter(c => c.status === 'PENDING')
+    .reduce((s, c) => s + c.amount, 0);
+
+  res.json({
+    total: approvedTotal,
+    pendingTotal,
+    contributions
+  });
 });
 
-// New route to add contribution
+// Add contribution (requires admin approval)
 router.post('/contributions', async (req, res) => {
   const { amount, date } = req.body;
   if (!amount || isNaN(amount) || amount <= 0) {
@@ -39,7 +55,9 @@ router.post('/contributions', async (req, res) => {
       data: {
         userId: req.user.id,
         amount: Number(amount),
-        date: contributionDate
+        date: contributionDate,
+        status: 'PENDING',
+        createdBy: req.user.id
       }
     });
     res.status(201).json(contribution);
@@ -55,10 +73,18 @@ router.get('/announcements', async (req, res) => {
 });
 
 router.get('/budget/summary', async (req, res) => {
-  const totalContrib = await prisma.contribution.aggregate({ _sum: { amount: true } });
+  const totalContrib = await prisma.contribution.aggregate({
+    where: { status: 'APPROVED' },
+    _sum: { amount: true }
+  });
   const totalExpenses = await prisma.expense.aggregate({ _sum: { amount: true } });
   const byCategory = await prisma.expense.groupBy({ by: ['category'], _sum: { amount: true } });
-  res.json({ totalContrib: totalContrib._sum.amount || 0, totalExpenses: totalExpenses._sum.amount || 0, remaining: (totalContrib._sum.amount || 0) - (totalExpenses._sum.amount || 0), byCategory });
+  res.json({
+    totalContrib: totalContrib._sum.amount || 0,
+    totalExpenses: totalExpenses._sum.amount || 0,
+    remaining: (totalContrib._sum.amount || 0) - (totalExpenses._sum.amount || 0),
+    byCategory
+  });
 });
 
 export default router;

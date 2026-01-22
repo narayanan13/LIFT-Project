@@ -20,13 +20,17 @@ model User {
 }
 
 model Contribution {
-  id        String   @id @default(cuid())
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String
-  amount    Float
-  date      DateTime
-  notes     String?
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String             @id @default(cuid())
+  user       User               @relation(fields: [userId], references: [id])
+  userId     String
+  amount     Float
+  date       DateTime
+  notes      String?
+  status     ContributionStatus @default(PENDING)
+  createdBy  String?            @map("created_by")
+  approvedBy String?            @map("approved_by")
+  approvedAt DateTime?          @map("approved_at")
+  createdAt  DateTime           @default(now()) @map("created_at")
 }
 
 model Event {
@@ -60,4 +64,10 @@ model Announcement {
 enum Role {
   ADMIN
   ALUMNI
+}
+
+enum ContributionStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }

@@ -1,16 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../api';
-import { FaHistory } from 'react-icons/fa';
+import { FaHistory, FaPlus } from 'react-icons/fa';
 import ToastNotification from '../../components/ToastNotification';
 
+function StatusBadge({ status }) {
+  const styles = {
+    PENDING: 'bg-yellow-100 text-yellow-800',
+    APPROVED: 'bg-green-100 text-green-800',
+    REJECTED: 'bg-red-100 text-red-800'
+  };
+  return (
+    <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status]}`}>
+      {status}
+    </span>
+  );
+}
+
 export default function AlumniContributions() {
-  const [contribs, setContribs] = useState({ total: 0, contributions: [] });
+  const [contribs, setContribs] = useState({ total: 0, pendingTotal: 0, contributions: [] });
   const [loading, setLoading] = useState(true);
 
   const [newAmount, setNewAmount] = useState('');
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
   const [adding, setAdding] = useState(false);
-  const [addError, setAddError] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('error');
   const [toastVisible, setToastVisible] = useState(false);
@@ -33,19 +45,16 @@ export default function AlumniContributions() {
 
   async function handleAddContribution(e) {
     e.preventDefault();
-    setAddError('');
     if (!newAmount || isNaN(newAmount) || Number(newAmount) <= 0) {
-      showToast('Negative values are not allowed', 'error');
+      showToast('Please enter a valid positive amount', 'error');
       return;
     }
     setAdding(true);
     try {
       await api.post('/alumni/contributions', { amount: Number(newAmount), date: newDate });
-      setToastMessage('Contribution added successfully');
-      setToastType('success');
-      setToastVisible(true);
+      showToast('Contribution submitted! It will appear once approved by an admin.', 'success');
       setNewAmount('');
-      setNewDate(new Date().toISOString().split('T')[0]); // Reset to today's date
+      setNewDate(new Date().toISOString().split('T')[0]);
       await fetchContributions();
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to add contribution', 'error');
@@ -60,7 +69,7 @@ export default function AlumniContributions() {
     setToastVisible(true);
   }
 
-  // Calculate monthly and yearly contribution sums
+  // Calculate monthly and yearly contribution sums (only approved)
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
@@ -68,14 +77,14 @@ export default function AlumniContributions() {
   const monthlyContribution = contribs.contributions
     .filter(c => {
       const d = new Date(c.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear && c.status === 'APPROVED';
     })
     .reduce((sum, c) => sum + c.amount, 0);
 
   const yearlyContribution = contribs.contributions
     .filter(c => {
       const d = new Date(c.date);
-      return d.getFullYear() === currentYear;
+      return d.getFullYear() === currentYear && c.status === 'APPROVED';
     })
     .reduce((sum, c) => sum + c.amount, 0);
 
@@ -88,18 +97,25 @@ export default function AlumniContributions() {
         </div>
 
         {/* Contribution summary cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 max-w-3xl">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 max-w-4xl">
           <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center">
-            <div className="text-lg font-semibold text-gray-700 mb-2">Monthly Contribution</div>
+            <div className="text-lg font-semibold text-gray-700 mb-2">This Month</div>
             <div className="text-2xl font-bold text-deep-red">₹{monthlyContribution.toFixed(2)}</div>
+            <div className="text-xs text-gray-500 mt-1">Approved</div>
           </div>
           <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center">
-            <div className="text-lg font-semibold text-gray-700 mb-2">Yearly Contribution</div>
+            <div className="text-lg font-semibold text-gray-700 mb-2">This Year</div>
             <div className="text-2xl font-bold text-deep-red">₹{yearlyContribution.toFixed(2)}</div>
+            <div className="text-xs text-gray-500 mt-1">Approved</div>
           </div>
           <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center">
-            <div className="text-lg font-semibold text-gray-700 mb-2">Total Contribution</div>
-            <div className="text-2xl font-bold text-deep-red">₹{contribs.total.toFixed(2)}</div>
+            <div className="text-lg font-semibold text-gray-700 mb-2">Total Approved</div>
+            <div className="text-2xl font-bold text-green-600">₹{contribs.total.toFixed(2)}</div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center border-l-4 border-yellow-400">
+            <div className="text-lg font-semibold text-gray-700 mb-2">Pending</div>
+            <div className="text-2xl font-bold text-yellow-600">₹{(contribs.pendingTotal || 0).toFixed(2)}</div>
+            <div className="text-xs text-gray-500 mt-1">Awaiting approval</div>
           </div>
         </div>
 
@@ -110,36 +126,46 @@ export default function AlumniContributions() {
         ) : (
           <>
             {/* Contribution addition form */}
-            <div className="mb-8 p-4 bg-white rounded shadow max-w-md">
-              <h2 className="text-xl font-semibold mb-4">Add Contribution</h2>
+            <div className="mb-8 p-6 bg-white rounded-2xl shadow-sm max-w-md">
+              <div className="flex items-center mb-4">
+                <FaPlus className="text-deep-red mr-2" />
+                <h2 className="text-xl font-semibold">Add New Contribution</h2>
+              </div>
+              <p className="text-sm text-gray-500 mb-4">
+                Your contribution will be reviewed by an admin before it's approved.
+              </p>
               <form onSubmit={handleAddContribution} className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹)</label>
                   <input
                     type="number"
-                    placeholder="Amount"
+                    placeholder="Enter amount"
                     value={newAmount}
                     min={0}
+                    step="0.01"
                     onChange={e => setNewAmount(e.target.value)}
-                    className="border border-soft-peach rounded px-3 py-2 flex-grow"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
                     disabled={adding}
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                   <input
                     type="date"
                     value={newDate}
                     onChange={e => setNewDate(e.target.value)}
-                    className="border border-soft-peach rounded px-3 py-2 flex-grow sm:flex-grow-0"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
                     disabled={adding}
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={adding}
-                  className="bg-deep-red hover:bg-warm-red text-white px-4 py-2 rounded w-full"
+                  className="w-full bg-deep-red hover:bg-warm-red text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
                 >
-                  {adding ? 'Adding...' : 'Add'}
+                  {adding ? 'Submitting...' : 'Submit Contribution'}
                 </button>
               </form>
-              {/* Toast notification display */}
               <ToastNotification
                 message={toastMessage}
                 type={toastType}
@@ -149,23 +175,24 @@ export default function AlumniContributions() {
             </div>
 
             {/* Contribution history */}
-            <div className="card max-w-3xl">
+            <div className="bg-white rounded-2xl shadow-sm p-6 max-w-3xl">
               <div className="flex items-center mb-4">
                 <FaHistory className="text-warm-red mr-2" />
-                <h2 className="text-xl font-semibold text-deep-red">My Contribution History</h2>
+                <h2 className="text-xl font-semibold text-deep-red">Contribution History</h2>
               </div>
               <div className="space-y-3">
                 {contribs.contributions.length > 0 ? (
                   contribs.contributions.map(c => (
-                    <div key={c.id} className="flex justify-between items-center p-3 border border-soft-peach rounded-lg hover:bg-very-light-peach transition-colors">
+                    <div key={c.id} className="flex justify-between items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                       <div className="flex items-center space-x-4">
-                        <div className="font-medium text-deep-red">₹{c.amount}</div>
-                        <div className="text-sm text-soft-peach">{new Date(c.date).toLocaleDateString()}</div>
+                        <div className="font-semibold text-lg text-deep-red">₹{c.amount.toLocaleString()}</div>
+                        <div className="text-sm text-gray-500">{new Date(c.date).toLocaleDateString()}</div>
                       </div>
+                      <StatusBadge status={c.status} />
                     </div>
                   ))
                 ) : (
-                  <p className="text-soft-peach text-center py-4">No contributions yet</p>
+                  <p className="text-gray-500 text-center py-8">No contributions yet. Add your first contribution above!</p>
                 )}
               </div>
             </div>

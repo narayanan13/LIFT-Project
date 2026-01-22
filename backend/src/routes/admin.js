@@ -41,21 +41,113 @@ router.get('/users', authRequired, requireRole('ADMIN'), async (req, res) => {
 });
 
 // Contributions
-router.post('/contributions', async (req, res) => {
+router.post('/contributions', authRequired, requireRole('ADMIN'), async (req, res) => {
   const { userId, amount, date, notes } = req.body;
   if (!userId || !amount || !date) return res.status(400).json({ error: 'Missing fields' });
   if (isNaN(amount) || Number(amount) <= 0) return res.status(400).json({ error: 'Negative values are not allowed' });
   try {
-    const c = await prisma.contribution.create({ data: { userId, amount: Number(amount), date: new Date(date), notes } });
+    const c = await prisma.contribution.create({
+      data: {
+        userId,
+        amount: Number(amount),
+        date: new Date(date),
+        notes,
+        status: 'APPROVED',
+        createdBy: req.user.id,
+        approvedBy: req.user.id,
+        approvedAt: new Date()
+      },
+      include: { user: true }
+    });
     res.json(c);
   } catch (e) {
     res.status(500).json({ error: 'Failed to record contribution', detail: e.message });
   }
 });
 
-router.get('/contributions', async (req, res) => {
-  const list = await prisma.contribution.findMany({ include: { user: true }, orderBy: { date: 'desc' } });
+router.get('/contributions', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { status } = req.query;
+  const where = status ? { status } : {};
+  const list = await prisma.contribution.findMany({
+    where,
+    include: { user: true },
+    orderBy: { createdAt: 'desc' }
+  });
   res.json(list);
+});
+
+router.put('/contributions/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  const { amount, date, notes, status } = req.body;
+
+  try {
+    const updateData = {};
+    if (amount !== undefined) {
+      if (isNaN(amount) || Number(amount) <= 0) {
+        return res.status(400).json({ error: 'Invalid amount' });
+      }
+      updateData.amount = Number(amount);
+    }
+    if (date !== undefined) updateData.date = new Date(date);
+    if (notes !== undefined) updateData.notes = notes;
+    if (status !== undefined) {
+      updateData.status = status;
+      if (status === 'APPROVED' || status === 'REJECTED') {
+        updateData.approvedBy = req.user.id;
+        updateData.approvedAt = new Date();
+      }
+    }
+
+    const contribution = await prisma.contribution.update({
+      where: { id },
+      data: updateData,
+      include: { user: true }
+    });
+    res.json(contribution);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to update contribution', detail: e.message });
+  }
+});
+
+router.put('/contributions/:id/approve', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const contribution = await prisma.contribution.update({
+      where: { id },
+      data: {
+        status: 'APPROVED',
+        approvedBy: req.user.id,
+        approvedAt: new Date()
+      },
+      include: { user: true }
+    });
+    res.json(contribution);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to approve contribution', detail: e.message });
+  }
+});
+
+router.put('/contributions/:id/reject', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const contribution = await prisma.contribution.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        approvedBy: req.user.id,
+        approvedAt: new Date()
+      },
+      include: { user: true }
+    });
+    res.json(contribution);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to reject contribution', detail: e.message });
+  }
+});
+
+router.get('/contributions/pending/count', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const count = await prisma.contribution.count({ where: { status: 'PENDING' } });
+  res.json({ count });
 });
 
 // Events/Groups
@@ -195,11 +287,19 @@ router.get('/announcements', async (req, res) => {
 });
 
 // Budget report
-router.get('/report/budget', async (req, res) => {
-  const totalContrib = await prisma.contribution.aggregate({ _sum: { amount: true } });
+router.get('/report/budget', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const totalContrib = await prisma.contribution.aggregate({
+    where: { status: 'APPROVED' },
+    _sum: { amount: true }
+  });
   const totalExpenses = await prisma.expense.aggregate({ _sum: { amount: true } });
   const byCategory = await prisma.expense.groupBy({ by: ['category'], _sum: { amount: true } });
-  res.json({ totalContrib: totalContrib._sum.amount || 0, totalExpenses: totalExpenses._sum.amount || 0, remaining: (totalContrib._sum.amount || 0) - (totalExpenses._sum.amount || 0), byCategory });
+  res.json({
+    totalContrib: totalContrib._sum.amount || 0,
+    totalExpenses: totalExpenses._sum.amount || 0,
+    remaining: (totalContrib._sum.amount || 0) - (totalExpenses._sum.amount || 0),
+    byCategory
+  });
 });
 
 export default router;
