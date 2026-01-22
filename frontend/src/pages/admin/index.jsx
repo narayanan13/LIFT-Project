@@ -11,6 +11,7 @@ export const adminLinks = [
   { to: '/admin/contributions', label: 'Contributions' },
   { to: '/admin/events', label: 'Events/Groups' },
   { to: '/admin/expenses', label: 'Expenses' },
+  { to: '/admin/change-password', label: 'Change Password' },
 ]
 
 export default {

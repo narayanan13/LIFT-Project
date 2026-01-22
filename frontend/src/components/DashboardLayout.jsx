@@ -34,10 +34,12 @@ export default function DashboardLayout({ links, role, children }){
     { to: '/admin/contributions', label: 'Contributions' },
     { to: '/admin/events', label: 'Events/Groups' },
     { to: '/admin/expenses', label: 'Expenses' },
+    { to: '/admin/change-password', label: 'Change Password' },
   ]
   const alumniLinks = [
     { to: '/alumni', label: 'Home' },
-    { to: '/alumni/contributions', label: 'Contributions' }
+    { to: '/alumni/contributions', label: 'Contributions' },
+    { to: '/alumni/change-password', label: 'Change Password' },
   ]
   const nav = links ?? (role === 'ADMIN' ? adminLinks : alumniLinks)
 

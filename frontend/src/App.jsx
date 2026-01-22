@@ -15,6 +15,7 @@ import AdminAnnouncements from './pages/admin/Announcements'
 import AdminReports from './pages/admin/Reports'
 import AlumniReports from './pages/alumni/Reports'
 import AlumniContributions from './pages/alumni/AlumniContributions'
+import ChangePassword from './pages/ChangePassword'
 
 function useAuth() {
   const user = localStorage.getItem('user');
@@ -42,10 +43,12 @@ export default function App() {
           <Route path="expenses" element={<AdminExpenses />} />
           <Route path="announcements" element={<AdminAnnouncements />} />
           <Route path="reports" element={<AdminReports />} />
+          <Route path="change-password" element={<ChangePassword />} />
         </Route>
         <Route path="/alumni" element={<Protected role={'ALUMNI'}><DashboardLayout role={'ALUMNI'} /></Protected>} >
           <Route index element={<AlumniDashboard/>} />
           <Route path="contributions" element={<AlumniContributions />} />
+          <Route path="change-password" element={<ChangePassword />} />
           {/* Removed reports route for alumni */}
           {/* <Route path="reports" element={<AlumniReports/>} /> */}
         </Route>

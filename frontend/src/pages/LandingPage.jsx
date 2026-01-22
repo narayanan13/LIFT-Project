@@ -29,10 +29,10 @@ const LandingPage = () => {
             </p>
             <div className="mt-6">
               <a
-                href="#cta"
+                href="/login"
                 className="bg-soft-peach text-deep-red px-6 py-3 rounded-lg font-semibold hover:bg-very-light-peach"
               >
-                Join Now
+                Sign In
               </a>
             </div>
           </div>
