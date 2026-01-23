@@ -302,6 +302,39 @@ router.delete('/expenses/:id', authRequired, requireRole('ADMIN'), async (req, r
   }
 });
 
+router.put('/expenses/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  const { amount, vendor, purpose, description, date, category, eventId } = req.body;
+
+  try {
+    const updateData = {};
+    if (amount !== undefined) {
+      if (isNaN(amount) || Number(amount) <= 0) {
+        return res.status(400).json({ error: 'Invalid amount' });
+      }
+      updateData.amount = Number(amount);
+    }
+    if (vendor !== undefined) updateData.vendor = vendor;
+    if (purpose !== undefined) updateData.purpose = purpose;
+    if (description !== undefined) updateData.description = description;
+    if (date !== undefined) updateData.date = new Date(date);
+    if (category !== undefined) updateData.category = category;
+    if (eventId !== undefined) updateData.eventId = eventId || null;
+
+    const expense = await prisma.expense.update({
+      where: { id },
+      data: updateData,
+      include: {
+        event: true,
+        submitter: { select: { id: true, name: true, email: true } }
+      }
+    });
+    res.json(expense);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update expense', detail: err.message });
+  }
+});
+
 router.put('/expenses/:id/approve', authRequired, requireRole('ADMIN'), async (req, res) => {
   const { id } = req.params;
   try {

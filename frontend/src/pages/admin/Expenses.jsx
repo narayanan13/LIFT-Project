@@ -19,10 +19,13 @@ export default function AdminExpenses(){
   const [events, setEvents] = useState([])
   const [showModal, setShowModal] = useState(false)
   const [showBulkModal, setShowBulkModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingExpense, setEditingExpense] = useState(null)
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [filterEvent, setFilterEvent] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [formData, setFormData] = useState({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', eventId: '' })
+  const [editFormData, setEditFormData] = useState({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', eventId: '' })
   const [bulkExpenses, setBulkExpenses] = useState([{ amount: '', vendor: '', purpose: '', description: '', date: '', category: '' }])
 
   useEffect(() => {
@@ -114,6 +117,37 @@ export default function AdminExpenses(){
       fetchExpenses()
     } catch (error) {
       alert('Failed to reject expense')
+    }
+  }
+
+  const handleEditClick = (expense) => {
+    setEditingExpense(expense)
+    setEditFormData({
+      amount: expense.amount,
+      vendor: expense.vendor || '',
+      purpose: expense.purpose,
+      description: expense.description || '',
+      date: expense.date.split('T')[0],
+      category: expense.category,
+      eventId: expense.eventId || ''
+    })
+    setShowEditModal(true)
+  }
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault()
+    if (!editFormData.amount || !editFormData.purpose || !editFormData.date || !editFormData.category) {
+      alert('Please fill in all required fields')
+      return
+    }
+    try {
+      await api.put(`/admin/expenses/${editingExpense.id}`, editFormData)
+      setShowEditModal(false)
+      setEditingExpense(null)
+      setEditFormData({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', eventId: '' })
+      fetchExpenses()
+    } catch (error) {
+      alert('Failed to update expense')
     }
   }
 
@@ -226,6 +260,12 @@ export default function AdminExpenses(){
                 </>
               )}
               <button
+                onClick={() => handleEditClick(e)}
+                className="px-3 py-1 bg-blue-100 text-blue-600 rounded text-sm hover:bg-blue-200"
+              >
+                Edit
+              </button>
+              <button
                 onClick={() => handleDeleteExpense(e.id)}
                 className="px-3 py-1 bg-gray-100 text-gray-600 rounded text-sm hover:bg-gray-200"
               >
@@ -331,6 +371,110 @@ export default function AdminExpenses(){
                   className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
                 >
                   Add
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg w-96 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold mb-4">Edit Expense</h3>
+            <form onSubmit={handleEditSubmit}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Amount *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editFormData.amount}
+                  onChange={(e) => setEditFormData({ ...editFormData, amount: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Vendor</label>
+                <input
+                  type="text"
+                  value={editFormData.vendor}
+                  onChange={(e) => setEditFormData({ ...editFormData, vendor: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  placeholder="e.g., Amazon, Local Store"
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Purpose *</label>
+                <input
+                  type="text"
+                  value={editFormData.purpose}
+                  onChange={(e) => setEditFormData({ ...editFormData, purpose: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  placeholder="e.g., Office Supplies, Event Catering"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Description (Optional)</label>
+                <textarea
+                  value={editFormData.description}
+                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  rows="3"
+                  placeholder="Any additional details..."
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Date *</label>
+                <input
+                  type="date"
+                  value={editFormData.date}
+                  onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Category *</label>
+                <input
+                  type="text"
+                  value={editFormData.category}
+                  onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  placeholder="e.g., Office, Event"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Event/Group (Optional)</label>
+                <select
+                  value={editFormData.eventId}
+                  onChange={(e) => setEditFormData({ ...editFormData, eventId: e.target.value })}
+                  className="w-full p-2 border rounded"
+                >
+                  <option value="">-- Select Event/Group --</option>
+                  {events.map(event => (
+                    <option key={event.id} value={event.id}>{event.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false)
+                    setEditingExpense(null)
+                  }}
+                  className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>
