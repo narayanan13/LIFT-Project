@@ -395,6 +395,249 @@ router.get('/announcements', async (req, res) => {
   res.json(list);
 });
 
+// Meetings
+const createMeetingSchema = Joi.object({
+  title: Joi.string().allow('', null).optional(),
+  date: Joi.date().required(),
+  startTime: Joi.string().pattern(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).required(),
+  endTime: Joi.string().pattern(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).required(),
+  location: Joi.string().required(),
+  notes: Joi.string().allow('', null).optional(),
+  participantIds: Joi.array().items(Joi.string()).optional(),
+  actionItems: Joi.array().items(Joi.object({
+    description: Joi.string().required(),
+    targetDate: Joi.date().required(),
+    assigneeIds: Joi.array().items(Joi.string()).min(1).required()
+  })).optional()
+});
+
+router.post('/meetings', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { error, value } = createMeetingSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  const { title, date, startTime, endTime, location, notes, participantIds, actionItems } = value;
+
+  try {
+    // Create meeting first
+    const meeting = await prisma.meeting.create({
+      data: {
+        title,
+        date: new Date(date),
+        startTime,
+        endTime,
+        location,
+        notes,
+        createdBy: req.user.id,
+        participants: participantIds?.length ? {
+          create: participantIds.map(userId => ({ userId }))
+        } : undefined
+      }
+    });
+
+    // Create action items with multiple assignees
+    if (actionItems?.length) {
+      for (const item of actionItems) {
+        const actionItem = await prisma.actionItem.create({
+          data: {
+            meetingId: meeting.id,
+            description: item.description,
+            targetDate: new Date(item.targetDate),
+            assignees: {
+              create: item.assigneeIds.map(userId => ({ userId }))
+            }
+          }
+        });
+      }
+    }
+
+    // Fetch complete meeting with relations
+    const completeMeeting = await prisma.meeting.findUnique({
+      where: { id: meeting.id },
+      include: {
+        creator: { select: { id: true, name: true, email: true } },
+        participants: { include: { user: { select: { id: true, name: true, email: true } } } },
+        actionItems: { include: { assignees: { include: { user: { select: { id: true, name: true, email: true } } } } } }
+      }
+    });
+    res.status(201).json(completeMeeting);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create meeting', detail: err.message });
+  }
+});
+
+router.get('/meetings', authRequired, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const meetings = await prisma.meeting.findMany({
+      include: {
+        creator: { select: { id: true, name: true, email: true } },
+        participants: { include: { user: { select: { id: true, name: true, email: true } } } },
+        actionItems: { include: { assignees: { include: { user: { select: { id: true, name: true, email: true } } } } } }
+      },
+      orderBy: { date: 'desc' }
+    });
+    res.json(meetings);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch meetings', detail: err.message });
+  }
+});
+
+router.get('/meetings/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const meeting = await prisma.meeting.findUnique({
+      where: { id },
+      include: {
+        creator: { select: { id: true, name: true, email: true } },
+        participants: { include: { user: { select: { id: true, name: true, email: true } } } },
+        actionItems: { include: { assignees: { include: { user: { select: { id: true, name: true, email: true } } } } } }
+      }
+    });
+    if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+    res.json(meeting);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch meeting', detail: err.message });
+  }
+});
+
+router.put('/meetings/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  const { title, date, startTime, endTime, location, notes, participantIds, actionItems } = req.body;
+
+  try {
+    // Update meeting basic fields
+    const updateData = {};
+    if (title !== undefined) updateData.title = title;
+    if (date !== undefined) updateData.date = new Date(date);
+    if (startTime !== undefined) updateData.startTime = startTime;
+    if (endTime !== undefined) updateData.endTime = endTime;
+    if (location !== undefined) updateData.location = location;
+    if (notes !== undefined) updateData.notes = notes;
+
+    // Handle participants update
+    if (participantIds !== undefined) {
+      await prisma.meetingParticipant.deleteMany({ where: { meetingId: id } });
+      if (participantIds.length > 0) {
+        await prisma.meetingParticipant.createMany({
+          data: participantIds.map(userId => ({ meetingId: id, userId }))
+        });
+      }
+    }
+
+    // Handle action items update with multiple assignees
+    if (actionItems !== undefined) {
+      await prisma.actionItem.deleteMany({ where: { meetingId: id } });
+      for (const item of actionItems) {
+        await prisma.actionItem.create({
+          data: {
+            meetingId: id,
+            description: item.description,
+            targetDate: new Date(item.targetDate),
+            status: item.status || 'PENDING',
+            completedAt: item.status === 'COMPLETED' ? new Date() : null,
+            assignees: {
+              create: (item.assigneeIds || []).map(userId => ({ userId }))
+            }
+          }
+        });
+      }
+    }
+
+    const meeting = await prisma.meeting.update({
+      where: { id },
+      data: updateData,
+      include: {
+        creator: { select: { id: true, name: true, email: true } },
+        participants: { include: { user: { select: { id: true, name: true, email: true } } } },
+        actionItems: { include: { assignees: { include: { user: { select: { id: true, name: true, email: true } } } } } }
+      }
+    });
+    res.json(meeting);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update meeting', detail: err.message });
+  }
+});
+
+router.delete('/meetings/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await prisma.meeting.delete({ where: { id } });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete meeting', detail: err.message });
+  }
+});
+
+// Action Items management
+router.post('/meetings/:id/action-items', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  const { description, targetDate, assigneeIds } = req.body;
+
+  if (!description || !targetDate || !assigneeIds || !assigneeIds.length) {
+    return res.status(400).json({ error: 'Missing required fields: description, targetDate, assigneeIds' });
+  }
+
+  try {
+    const actionItem = await prisma.actionItem.create({
+      data: {
+        meetingId: id,
+        description,
+        targetDate: new Date(targetDate),
+        assignees: {
+          create: assigneeIds.map(userId => ({ userId }))
+        }
+      },
+      include: { assignees: { include: { user: { select: { id: true, name: true, email: true } } } } }
+    });
+    res.status(201).json(actionItem);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create action item', detail: err.message });
+  }
+});
+
+router.put('/action-items/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  const { description, targetDate, assigneeIds, status } = req.body;
+
+  try {
+    const updateData = {};
+    if (description !== undefined) updateData.description = description;
+    if (targetDate !== undefined) updateData.targetDate = new Date(targetDate);
+    if (status !== undefined) {
+      updateData.status = status;
+      updateData.completedAt = status === 'COMPLETED' ? new Date() : null;
+    }
+
+    // Handle assignees update
+    if (assigneeIds !== undefined) {
+      await prisma.actionItemAssignee.deleteMany({ where: { actionItemId: id } });
+      if (assigneeIds.length > 0) {
+        await prisma.actionItemAssignee.createMany({
+          data: assigneeIds.map(userId => ({ actionItemId: id, userId }))
+        });
+      }
+    }
+
+    const actionItem = await prisma.actionItem.update({
+      where: { id },
+      data: updateData,
+      include: { assignees: { include: { user: { select: { id: true, name: true, email: true } } } } }
+    });
+    res.json(actionItem);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update action item', detail: err.message });
+  }
+});
+
+router.delete('/action-items/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await prisma.actionItem.delete({ where: { id } });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete action item', detail: err.message });
+  }
+});
+
 // Budget report
 router.get('/report/budget', authRequired, requireRole('ADMIN'), async (req, res) => {
   const totalContrib = await prisma.contribution.aggregate({

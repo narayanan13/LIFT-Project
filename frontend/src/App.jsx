@@ -13,9 +13,12 @@ import AdminExpenses from './pages/admin/Expenses'
 import AdminEvents from './pages/admin/Events'
 import AdminAnnouncements from './pages/admin/Announcements'
 import AdminReports from './pages/admin/Reports'
+import AdminMeetings from './pages/admin/Meetings'
 import AlumniReports from './pages/alumni/Reports'
 import AlumniContributions from './pages/alumni/AlumniContributions'
 import AlumniExpenses from './pages/alumni/AlumniExpenses'
+import AlumniMeetings from './pages/alumni/AlumniMeetings'
+import AlumniActionItems from './pages/alumni/AlumniActionItems'
 import ChangePassword from './pages/ChangePassword'
 
 function useAuth() {
@@ -44,15 +47,16 @@ export default function App() {
           <Route path="expenses" element={<AdminExpenses />} />
           <Route path="announcements" element={<AdminAnnouncements />} />
           <Route path="reports" element={<AdminReports />} />
+          <Route path="meetings" element={<AdminMeetings />} />
           <Route path="change-password" element={<ChangePassword />} />
         </Route>
         <Route path="/alumni" element={<Protected role={'ALUMNI'}><DashboardLayout role={'ALUMNI'} /></Protected>} >
           <Route index element={<AlumniDashboard/>} />
           <Route path="contributions" element={<AlumniContributions />} />
           <Route path="expenses" element={<AlumniExpenses />} />
+          <Route path="meetings" element={<AlumniMeetings />} />
+          <Route path="action-items" element={<AlumniActionItems />} />
           <Route path="change-password" element={<ChangePassword />} />
-          {/* Removed reports route for alumni */}
-          {/* <Route path="reports" element={<AlumniReports/>} /> */}
         </Route>
     </Routes>
   )

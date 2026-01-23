@@ -17,10 +17,13 @@ model User {
   basicContributionAmount Float?   @map("basic_contribution_amount")
   createdAt               DateTime @default(now()) @map("created_at")
 
-  contributions      Contribution[]
-  basicPayments      BasicContributionPayment[]
-  submittedExpenses  Expense[] @relation("ExpenseSubmitter")
-  approvedExpenses   Expense[] @relation("ExpenseApprover")
+  contributions           Contribution[]
+  basicPayments           BasicContributionPayment[]
+  submittedExpenses       Expense[] @relation("ExpenseSubmitter")
+  approvedExpenses        Expense[] @relation("ExpenseApprover")
+  createdMeetings         Meeting[] @relation("MeetingCreator")
+  meetingParticipations   MeetingParticipant[]
+  actionItemAssignments   ActionItemAssignee[]
 }
 
 model Contribution {
@@ -112,4 +115,67 @@ model BasicContributionPayment {
 
   @@unique([userId, year, month])
   @@map("basic_contribution_payment")
+}
+
+enum ActionItemStatus {
+  PENDING
+  COMPLETED
+}
+
+model Meeting {
+  id          String   @id @default(cuid())
+  title       String?
+  date        DateTime
+  startTime   String   @map("start_time")
+  endTime     String   @map("end_time")
+  location    String
+  notes       String?  @db.Text
+  createdBy   String   @map("created_by")
+  creator     User     @relation("MeetingCreator", fields: [createdBy], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  participants MeetingParticipant[]
+  actionItems  ActionItem[]
+
+  @@map("meeting")
+}
+
+model MeetingParticipant {
+  id        String   @id @default(cuid())
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  meetingId String   @map("meeting_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([meetingId, userId])
+  @@map("meeting_participant")
+}
+
+model ActionItem {
+  id          String           @id @default(cuid())
+  description String
+  targetDate  DateTime         @map("target_date")
+  status      ActionItemStatus @default(PENDING)
+  meeting     Meeting          @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  meetingId   String           @map("meeting_id")
+  completedAt DateTime?        @map("completed_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  assignees   ActionItemAssignee[]
+
+  @@map("action_item")
+}
+
+model ActionItemAssignee {
+  id           String     @id @default(cuid())
+  actionItem   ActionItem @relation(fields: [actionItemId], references: [id], onDelete: Cascade)
+  actionItemId String     @map("action_item_id")
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String     @map("user_id")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@unique([actionItemId, userId])
+  @@map("action_item_assignee")
 }
