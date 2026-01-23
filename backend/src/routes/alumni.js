@@ -77,14 +77,96 @@ router.get('/budget/summary', async (req, res) => {
     where: { status: 'APPROVED' },
     _sum: { amount: true }
   });
-  const totalExpenses = await prisma.expense.aggregate({ _sum: { amount: true } });
-  const byCategory = await prisma.expense.groupBy({ by: ['category'], _sum: { amount: true } });
+  const totalExpenses = await prisma.expense.aggregate({
+    where: { status: 'APPROVED' },
+    _sum: { amount: true }
+  });
+  const byCategory = await prisma.expense.groupBy({
+    by: ['category'],
+    where: { status: 'APPROVED' },
+    _sum: { amount: true }
+  });
   res.json({
     totalContrib: totalContrib._sum.amount || 0,
     totalExpenses: totalExpenses._sum.amount || 0,
     remaining: (totalContrib._sum.amount || 0) - (totalExpenses._sum.amount || 0),
     byCategory
   });
+});
+
+// Expenses
+router.post('/expenses', async (req, res) => {
+  const { amount, vendor, purpose, description, date, category, eventId } = req.body;
+  if (!amount || !purpose || !date || !category) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  if (isNaN(amount) || Number(amount) <= 0) {
+    return res.status(400).json({ error: 'Invalid amount' });
+  }
+  try {
+    const expense = await prisma.expense.create({
+      data: {
+        amount: Number(amount),
+        vendor,
+        purpose,
+        description,
+        date: new Date(date),
+        category,
+        eventId: eventId || null,
+        status: 'PENDING',
+        submittedBy: req.user.id
+      },
+      include: { event: true }
+    });
+    res.status(201).json(expense);
+  } catch (error) {
+    console.error('Error creating expense:', error);
+    res.status(500).json({ error: 'Failed to submit expense' });
+  }
+});
+
+router.get('/expenses', async (req, res) => {
+  try {
+    const expenses = await prisma.expense.findMany({
+      where: { submittedBy: req.user.id },
+      include: { event: true },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const approvedTotal = expenses
+      .filter(e => e.status === 'APPROVED')
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const pendingTotal = expenses
+      .filter(e => e.status === 'PENDING')
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const rejectedTotal = expenses
+      .filter(e => e.status === 'REJECTED')
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    res.json({
+      expenses,
+      approvedTotal,
+      pendingTotal,
+      rejectedTotal
+    });
+  } catch (error) {
+    console.error('Error fetching expenses:', error);
+    res.status(500).json({ error: 'Failed to fetch expenses' });
+  }
+});
+
+router.get('/events', async (req, res) => {
+  try {
+    const events = await prisma.event.findMany({
+      orderBy: { date: 'desc' }
+    });
+    res.json(events);
+  } catch (error) {
+    console.error('Error fetching events:', error);
+    res.status(500).json({ error: 'Failed to fetch events' });
+  }
 });
 
 export default router;

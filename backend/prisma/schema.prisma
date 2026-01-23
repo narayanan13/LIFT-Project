@@ -8,15 +8,19 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  role         Role
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now()) @map("created_at")
+  id                      String   @id @default(cuid())
+  name                    String
+  email                   String   @unique
+  passwordHash            String   @map("password_hash")
+  role                    Role
+  active                  Boolean  @default(true)
+  basicContributionAmount Float?   @map("basic_contribution_amount")
+  createdAt               DateTime @default(now()) @map("created_at")
 
-  contributions Contribution[]
+  contributions      Contribution[]
+  basicPayments      BasicContributionPayment[]
+  submittedExpenses  Expense[] @relation("ExpenseSubmitter")
+  approvedExpenses   Expense[] @relation("ExpenseApprover")
 }
 
 model Contribution {
@@ -26,6 +30,7 @@ model Contribution {
   amount     Float
   date       DateTime
   notes      String?
+  type       ContributionType   @default(ADDITIONAL)
   status     ContributionStatus @default(PENDING)
   createdBy  String?            @map("created_by")
   approvedBy String?            @map("approved_by")
@@ -43,15 +48,25 @@ model Event {
 }
 
 model Expense {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   amount      Float
+  vendor      String?
   purpose     String
   description String?
   date        DateTime
   category    String
   eventId     String?
-  event       Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
-  createdAt   DateTime @default(now()) @map("created_at")
+  event       Event?        @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  // Approval workflow
+  status      ExpenseStatus @default(PENDING)
+  submittedBy String?       @map("submitted_by")
+  submitter   User?         @relation("ExpenseSubmitter", fields: [submittedBy], references: [id])
+  approvedBy  String?       @map("approved_by")
+  approver    User?         @relation("ExpenseApprover", fields: [approvedBy], references: [id])
+  approvedAt  DateTime?     @map("approved_at")
+
+  createdAt   DateTime      @default(now()) @map("created_at")
 }
 
 model Announcement {
@@ -70,4 +85,31 @@ enum ContributionStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum ContributionType {
+  BASIC
+  ADDITIONAL
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model BasicContributionPayment {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id])
+  userId    String
+  year      Int
+  month     Int
+  amount    Float
+  paid      Boolean   @default(false)
+  paidAt    DateTime? @map("paid_at")
+  paidBy    String?   @map("paid_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@unique([userId, year, month])
+  @@map("basic_contribution_payment")
 }

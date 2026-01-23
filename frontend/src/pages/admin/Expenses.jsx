@@ -1,6 +1,19 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api'
 
+const StatusBadge = ({ status }) => {
+  const styles = {
+    PENDING: 'bg-yellow-100 text-yellow-800',
+    APPROVED: 'bg-green-100 text-green-800',
+    REJECTED: 'bg-red-100 text-red-800'
+  }
+  return (
+    <span className={`px-2 py-1 rounded text-xs font-medium ${styles[status] || 'bg-gray-100'}`}>
+      {status}
+    </span>
+  )
+}
+
 export default function AdminExpenses(){
   const [list, setList] = useState([])
   const [events, setEvents] = useState([])
@@ -8,8 +21,9 @@ export default function AdminExpenses(){
   const [showBulkModal, setShowBulkModal] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [filterEvent, setFilterEvent] = useState('all')
-  const [formData, setFormData] = useState({ amount: '', purpose: '', description: '', date: '', category: '', eventId: '' })
-  const [bulkExpenses, setBulkExpenses] = useState([{ amount: '', purpose: '', description: '', date: '', category: '' }])
+  const [filterStatus, setFilterStatus] = useState('all')
+  const [formData, setFormData] = useState({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', eventId: '' })
+  const [bulkExpenses, setBulkExpenses] = useState([{ amount: '', vendor: '', purpose: '', description: '', date: '', category: '' }])
 
   useEffect(() => {
     fetchExpenses()
@@ -33,7 +47,7 @@ export default function AdminExpenses(){
     try {
       await api.post('/admin/expenses', formData)
       setShowModal(false)
-      setFormData({ amount: '', purpose: '', description: '', date: '', category: '', eventId: '' })
+      setFormData({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', eventId: '' })
       fetchExpenses()
     } catch (error) {
       alert('Failed to add expense')
@@ -52,7 +66,7 @@ export default function AdminExpenses(){
         expenses: validExpenses.map(exp => ({ ...exp, eventId: selectedEvent }))
       })
       setShowBulkModal(false)
-      setBulkExpenses([{ amount: '', purpose: '', description: '', date: '', category: '' }])
+      setBulkExpenses([{ amount: '', vendor: '', purpose: '', description: '', date: '', category: '' }])
       setSelectedEvent(null)
       fetchExpenses()
     } catch (error) {
@@ -61,7 +75,7 @@ export default function AdminExpenses(){
   }
 
   const handleAddBulkRow = () => {
-    setBulkExpenses([...bulkExpenses, { amount: '', purpose: '', description: '', date: '', category: '' }])
+    setBulkExpenses([...bulkExpenses, { amount: '', vendor: '', purpose: '', description: '', date: '', category: '' }])
   }
 
   const handleRemoveBulkRow = (index) => {
@@ -85,7 +99,35 @@ export default function AdminExpenses(){
     }
   }
 
-  const filteredList = filterEvent === 'all' ? list : filterEvent === 'none' ? list.filter(e => !e.eventId) : list.filter(e => e.eventId === filterEvent)
+  const handleApprove = async (id) => {
+    try {
+      await api.put(`/admin/expenses/${id}/approve`)
+      fetchExpenses()
+    } catch (error) {
+      alert('Failed to approve expense')
+    }
+  }
+
+  const handleReject = async (id) => {
+    try {
+      await api.put(`/admin/expenses/${id}/reject`)
+      fetchExpenses()
+    } catch (error) {
+      alert('Failed to reject expense')
+    }
+  }
+
+  let filteredList = list
+  if (filterEvent !== 'all') {
+    filteredList = filterEvent === 'none'
+      ? filteredList.filter(e => !e.eventId)
+      : filteredList.filter(e => e.eventId === filterEvent)
+  }
+  if (filterStatus !== 'all') {
+    filteredList = filteredList.filter(e => e.status === filterStatus)
+  }
+
+  const pendingCount = list.filter(e => e.status === 'PENDING').length
 
   return (
     <div>
@@ -107,35 +149,85 @@ export default function AdminExpenses(){
         </div>
       </div>
 
-      <div className="mb-4">
-        <label className="block text-sm font-medium mb-2">Filter by Event/Group</label>
-        <select
-          value={filterEvent}
-          onChange={(e) => setFilterEvent(e.target.value)}
-          className="p-2 border rounded w-full md:w-64"
-        >
-          <option value="all">All Expenses</option>
-          <option value="none">No Event/Group</option>
-          {events.map(event => (
-            <option key={event.id} value={event.id}>{event.name}</option>
-          ))}
-        </select>
+      <div className="mb-4 flex flex-wrap gap-4">
+        <div>
+          <label className="block text-sm font-medium mb-2">Filter by Status</label>
+          <div className="flex gap-2">
+            {['all', 'PENDING', 'APPROVED', 'REJECTED'].map(status => (
+              <button
+                key={status}
+                onClick={() => setFilterStatus(status)}
+                className={`px-3 py-1 rounded text-sm ${
+                  filterStatus === status
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                {status === 'all' ? 'All' : status}
+                {status === 'PENDING' && pendingCount > 0 && (
+                  <span className="ml-1 bg-red-500 text-white rounded-full px-2 text-xs">
+                    {pendingCount}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2">Filter by Event/Group</label>
+          <select
+            value={filterEvent}
+            onChange={(e) => setFilterEvent(e.target.value)}
+            className="p-2 border rounded w-full md:w-64"
+          >
+            <option value="all">All Expenses</option>
+            <option value="none">No Event/Group</option>
+            {events.map(event => (
+              <option key={event.id} value={event.id}>{event.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="space-y-2">
         {filteredList.map(e => (
-          <div key={e.id} className="p-3 bg-white rounded shadow-sm flex justify-between items-start border-l-4 border-red-400">
+          <div key={e.id} className={`p-3 bg-white rounded shadow-sm flex justify-between items-start border-l-4 ${
+            e.status === 'PENDING' ? 'border-yellow-400' :
+            e.status === 'APPROVED' ? 'border-green-400' : 'border-red-400'
+          }`}>
             <div>
-              <div className="font-semibold">{e.category} - {e.purpose}</div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-semibold">{e.category} - {e.purpose}</span>
+                <StatusBadge status={e.status} />
+              </div>
+              {e.vendor && <div className="text-sm text-gray-600">Vendor: {e.vendor}</div>}
               <div className="text-sm text-gray-500">{new Date(e.date).toLocaleDateString()}</div>
               {e.event && <div className="text-sm text-blue-600">Group: {e.event.name}</div>}
+              {e.submitter && <div className="text-sm text-purple-600">Submitted by: {e.submitter.name}</div>}
               {e.description && <div className="text-sm text-gray-600 mt-1">{e.description}</div>}
             </div>
-            <div className="flex items-center gap-4">
-            <div className="font-semibold text-red-600">₹{e.amount}</div>
+            <div className="flex items-center gap-2">
+              <div className="font-semibold text-red-600">₹{e.amount}</div>
+              {e.status === 'PENDING' && (
+                <>
+                  <button
+                    onClick={() => handleApprove(e.id)}
+                    className="px-3 py-1 bg-green-100 text-green-600 rounded text-sm hover:bg-green-200"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => handleReject(e.id)}
+                    className="px-3 py-1 bg-red-100 text-red-600 rounded text-sm hover:bg-red-200"
+                  >
+                    Reject
+                  </button>
+                </>
+              )}
               <button
                 onClick={() => handleDeleteExpense(e.id)}
-                className="px-3 py-1 bg-red-100 text-red-600 rounded text-sm hover:bg-red-200"
+                className="px-3 py-1 bg-gray-100 text-gray-600 rounded text-sm hover:bg-gray-200"
               >
                 Delete
               </button>
@@ -147,7 +239,7 @@ export default function AdminExpenses(){
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg w-96 max-h-96 overflow-y-auto">
+          <div className="bg-white p-6 rounded-lg w-96 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold mb-4">Add New Expense</h3>
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
@@ -159,6 +251,16 @@ export default function AdminExpenses(){
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                   className="w-full p-2 border rounded"
                   required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Vendor</label>
+                <input
+                  type="text"
+                  value={formData.vendor}
+                  onChange={(e) => setFormData({ ...formData, vendor: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  placeholder="e.g., Amazon, Local Store"
                 />
               </div>
               <div className="mb-4">
@@ -238,7 +340,7 @@ export default function AdminExpenses(){
 
       {showBulkModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg w-full max-w-4xl max-h-96 overflow-y-auto">
+          <div className="bg-white p-6 rounded-lg w-full max-w-5xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold mb-4">Add Multiple Expenses</h3>
             <form onSubmit={handleBulkSubmit}>
               <div className="mb-4">
@@ -260,6 +362,7 @@ export default function AdminExpenses(){
                   <thead>
                     <tr className="bg-gray-100 border-b">
                       <th className="p-2 text-left">Amount</th>
+                      <th className="p-2 text-left">Vendor</th>
                       <th className="p-2 text-left">Purpose</th>
                       <th className="p-2 text-left">Date</th>
                       <th className="p-2 text-left">Category</th>
@@ -278,6 +381,15 @@ export default function AdminExpenses(){
                             onChange={(e) => handleBulkRowChange(index, 'amount', e.target.value)}
                             className="w-full p-1 border rounded text-sm"
                             placeholder="0.00"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input
+                            type="text"
+                            value={exp.vendor}
+                            onChange={(e) => handleBulkRowChange(index, 'vendor', e.target.value)}
+                            className="w-full p-1 border rounded text-sm"
+                            placeholder="Vendor"
                           />
                         </td>
                         <td className="p-2">
@@ -346,7 +458,7 @@ export default function AdminExpenses(){
                   type="button"
                   onClick={() => {
                     setShowBulkModal(false)
-                    setBulkExpenses([{ amount: '', purpose: '', description: '', date: '', category: '' }])
+                    setBulkExpenses([{ amount: '', vendor: '', purpose: '', description: '', date: '', category: '' }])
                     setSelectedEvent(null)
                   }}
                   className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"

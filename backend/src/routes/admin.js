@@ -208,11 +208,26 @@ router.delete('/events/:id', authRequired, requireRole('ADMIN'), async (req, res
 
 // Expenses
 router.post('/expenses', authRequired, requireRole('ADMIN'), async (req, res) => {
-  const { amount, purpose, description, date, category, eventId } = req.body;
+  const { amount, vendor, purpose, description, date, category, eventId } = req.body;
   if (!amount || !purpose || !date || !category) return res.status(400).json({ error: 'Missing required fields' });
   if (isNaN(amount) || Number(amount) <= 0) return res.status(400).json({ error: 'Negative values are not allowed' });
   try {
-    const e = await prisma.expense.create({ data: { amount: Number(amount), purpose, description, date: new Date(date), category, eventId: eventId || null } });
+    const e = await prisma.expense.create({
+      data: {
+        amount: Number(amount),
+        vendor,
+        purpose,
+        description,
+        date: new Date(date),
+        category,
+        eventId: eventId || null,
+        status: 'APPROVED',
+        submittedBy: req.user.id,
+        approvedBy: req.user.id,
+        approvedAt: new Date()
+      },
+      include: { event: true, submitter: { select: { id: true, name: true, email: true } } }
+    });
     res.json(e);
   } catch (err) {
     res.status(500).json({ error: 'Failed to add expense', detail: err.message });
@@ -222,18 +237,23 @@ router.post('/expenses', authRequired, requireRole('ADMIN'), async (req, res) =>
 router.post('/expenses/bulk', authRequired, requireRole('ADMIN'), async (req, res) => {
   const { expenses } = req.body;
   if (!Array.isArray(expenses) || expenses.length === 0) return res.status(400).json({ error: 'Expenses array is required' });
-  
+
   try {
     const createdExpenses = await Promise.all(
-      expenses.map(exp => 
+      expenses.map(exp =>
         prisma.expense.create({
           data: {
             amount: Number(exp.amount),
+            vendor: exp.vendor,
             purpose: exp.purpose,
             description: exp.description,
             date: new Date(exp.date),
             category: exp.category,
-            eventId: exp.eventId || null
+            eventId: exp.eventId || null,
+            status: 'APPROVED',
+            submittedBy: req.user.id,
+            approvedBy: req.user.id,
+            approvedAt: new Date()
           }
         })
       )
@@ -245,8 +265,17 @@ router.post('/expenses/bulk', authRequired, requireRole('ADMIN'), async (req, re
 });
 
 router.get('/expenses', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { status } = req.query;
+  const where = status ? { status } : {};
   try {
-    const list = await prisma.expense.findMany({ include: { event: true }, orderBy: { date: 'desc' } });
+    const list = await prisma.expense.findMany({
+      where,
+      include: {
+        event: true,
+        submitter: { select: { id: true, name: true, email: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
     res.json(list);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch expenses', detail: err.message });
@@ -273,6 +302,53 @@ router.delete('/expenses/:id', authRequired, requireRole('ADMIN'), async (req, r
   }
 });
 
+router.put('/expenses/:id/approve', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const expense = await prisma.expense.update({
+      where: { id },
+      data: {
+        status: 'APPROVED',
+        approvedBy: req.user.id,
+        approvedAt: new Date()
+      },
+      include: {
+        event: true,
+        submitter: { select: { id: true, name: true, email: true } }
+      }
+    });
+    res.json(expense);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to approve expense', detail: err.message });
+  }
+});
+
+router.put('/expenses/:id/reject', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const expense = await prisma.expense.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        approvedBy: req.user.id,
+        approvedAt: new Date()
+      },
+      include: {
+        event: true,
+        submitter: { select: { id: true, name: true, email: true } }
+      }
+    });
+    res.json(expense);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reject expense', detail: err.message });
+  }
+});
+
+router.get('/expenses/pending/count', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const count = await prisma.expense.count({ where: { status: 'PENDING' } });
+  res.json({ count });
+});
+
 // Announcements
 router.post('/announcements', async (req, res) => {
   const { title, message } = req.body;
@@ -292,8 +368,15 @@ router.get('/report/budget', authRequired, requireRole('ADMIN'), async (req, res
     where: { status: 'APPROVED' },
     _sum: { amount: true }
   });
-  const totalExpenses = await prisma.expense.aggregate({ _sum: { amount: true } });
-  const byCategory = await prisma.expense.groupBy({ by: ['category'], _sum: { amount: true } });
+  const totalExpenses = await prisma.expense.aggregate({
+    where: { status: 'APPROVED' },
+    _sum: { amount: true }
+  });
+  const byCategory = await prisma.expense.groupBy({
+    by: ['category'],
+    where: { status: 'APPROVED' },
+    _sum: { amount: true }
+  });
   res.json({
     totalContrib: totalContrib._sum.amount || 0,
     totalExpenses: totalExpenses._sum.amount || 0,
