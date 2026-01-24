@@ -16,8 +16,24 @@ function StatusBadge({ status }) {
   );
 }
 
+function BucketBadge({ bucket }) {
+  const styles = {
+    LIFT: 'bg-blue-100 text-blue-800',
+    ALUMNI_ASSOCIATION: 'bg-purple-100 text-purple-800'
+  };
+  const labels = {
+    LIFT: 'LIFT',
+    ALUMNI_ASSOCIATION: 'Alumni Assoc.'
+  };
+  return (
+    <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[bucket] || 'bg-gray-100'}`}>
+      {labels[bucket] || bucket}
+    </span>
+  );
+}
+
 export default function AlumniExpenses() {
-  const [expenses, setExpenses] = useState({ expenses: [], approvedTotal: 0, pendingTotal: 0, rejectedTotal: 0 });
+  const [expenses, setExpenses] = useState({ expenses: [], approvedTotal: 0, pendingTotal: 0, rejectedTotal: 0, liftTotal: 0, aaTotal: 0 });
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -28,6 +44,7 @@ export default function AlumniExpenses() {
     description: '',
     date: new Date().toISOString().split('T')[0],
     category: '',
+    bucket: '',
     eventId: ''
   });
   const [adding, setAdding] = useState(false);
@@ -45,6 +62,7 @@ export default function AlumniExpenses() {
     description: '',
     date: '',
     category: '',
+    bucket: '',
     eventId: ''
   });
   const [editing, setEditing] = useState(false);
@@ -77,8 +95,8 @@ export default function AlumniExpenses() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!formData.amount || !formData.purpose || !formData.date || !formData.category) {
-      showToast('Please fill in all required fields', 'error');
+    if (!formData.amount || !formData.purpose || !formData.date || !formData.category || !formData.bucket) {
+      showToast('Please fill in all required fields including bucket', 'error');
       return;
     }
     if (isNaN(formData.amount) || Number(formData.amount) <= 0) {
@@ -100,6 +118,7 @@ export default function AlumniExpenses() {
         description: '',
         date: new Date().toISOString().split('T')[0],
         category: '',
+        bucket: '',
         eventId: ''
       });
       await fetchExpenses();
@@ -119,6 +138,7 @@ export default function AlumniExpenses() {
       description: expense.description || '',
       date: expense.date.split('T')[0],
       category: expense.category,
+      bucket: expense.bucket || 'LIFT',
       eventId: expense.eventId || ''
     });
     setShowEditModal(true);
@@ -126,8 +146,8 @@ export default function AlumniExpenses() {
 
   async function handleEditSubmit(e) {
     e.preventDefault();
-    if (!editFormData.amount || !editFormData.purpose || !editFormData.date || !editFormData.category) {
-      showToast('Please fill in all required fields', 'error');
+    if (!editFormData.amount || !editFormData.purpose || !editFormData.date || !editFormData.category || !editFormData.bucket) {
+      showToast('Please fill in all required fields including bucket', 'error');
       return;
     }
     if (isNaN(editFormData.amount) || Number(editFormData.amount) <= 0) {
@@ -151,6 +171,7 @@ export default function AlumniExpenses() {
         description: '',
         date: '',
         category: '',
+        bucket: '',
         eventId: ''
       });
       await fetchExpenses();
@@ -176,19 +197,29 @@ export default function AlumniExpenses() {
         </div>
 
         {/* Expense summary cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 max-w-3xl">
-          <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center border-l-4 border-green-400">
-            <div className="text-lg font-semibold text-gray-700 mb-2">Approved</div>
-            <div className="text-2xl font-bold text-green-600">₹{expenses.approvedTotal.toFixed(2)}</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+          <div className="bg-white rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center border-l-4 border-green-400">
+            <div className="text-sm font-semibold text-gray-700 mb-2">Approved</div>
+            <div className="text-xl font-bold text-green-600">₹{expenses.approvedTotal.toFixed(2)}</div>
           </div>
-          <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center border-l-4 border-yellow-400">
-            <div className="text-lg font-semibold text-gray-700 mb-2">Pending</div>
-            <div className="text-2xl font-bold text-yellow-600">₹{expenses.pendingTotal.toFixed(2)}</div>
-            <div className="text-xs text-gray-500 mt-1">Awaiting approval</div>
+          <div className="bg-white rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center border-l-4 border-blue-400">
+            <div className="text-sm font-semibold text-gray-700 mb-2">LIFT</div>
+            <div className="text-xl font-bold text-blue-600">₹{(expenses.liftTotal || 0).toFixed(2)}</div>
+            <div className="text-xs text-gray-500 mt-1">Approved</div>
           </div>
-          <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center border-l-4 border-red-400">
-            <div className="text-lg font-semibold text-gray-700 mb-2">Rejected</div>
-            <div className="text-2xl font-bold text-red-600">₹{expenses.rejectedTotal.toFixed(2)}</div>
+          <div className="bg-white rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center border-l-4 border-purple-400">
+            <div className="text-sm font-semibold text-gray-700 mb-2">Alumni Assoc.</div>
+            <div className="text-xl font-bold text-purple-600">₹{(expenses.aaTotal || 0).toFixed(2)}</div>
+            <div className="text-xs text-gray-500 mt-1">Approved</div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center border-l-4 border-yellow-400">
+            <div className="text-sm font-semibold text-gray-700 mb-2">Pending</div>
+            <div className="text-xl font-bold text-yellow-600">₹{expenses.pendingTotal.toFixed(2)}</div>
+            <div className="text-xs text-gray-500 mt-1">Awaiting</div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center border-l-4 border-red-400">
+            <div className="text-sm font-semibold text-gray-700 mb-2">Rejected</div>
+            <div className="text-xl font-bold text-red-600">₹{expenses.rejectedTotal.toFixed(2)}</div>
           </div>
         </div>
 
@@ -271,6 +302,20 @@ export default function AlumniExpenses() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bucket *</label>
+                  <select
+                    value={formData.bucket}
+                    onChange={e => setFormData({ ...formData, bucket: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
+                    disabled={adding}
+                    required
+                  >
+                    <option value="">-- Select Bucket --</option>
+                    <option value="LIFT">LIFT</option>
+                    <option value="ALUMNI_ASSOCIATION">Alumni Association</option>
+                  </select>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Event/Group (Optional)</label>
                   <select
                     value={formData.eventId}
@@ -329,6 +374,7 @@ export default function AlumniExpenses() {
                           <div className="flex items-center gap-2 mb-1">
                             <span className="font-semibold text-deep-red">{exp.category} - {exp.purpose}</span>
                             <StatusBadge status={exp.status} />
+                            <BucketBadge bucket={exp.bucket} />
                           </div>
                           {exp.vendor && <div className="text-sm text-gray-600">Vendor: {exp.vendor}</div>}
                           <div className="text-sm text-gray-500">{new Date(exp.date).toLocaleDateString()}</div>
@@ -431,6 +477,20 @@ export default function AlumniExpenses() {
                     disabled={editing}
                     required
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bucket *</label>
+                  <select
+                    value={editFormData.bucket}
+                    onChange={e => setEditFormData({ ...editFormData, bucket: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={editing}
+                    required
+                  >
+                    <option value="">-- Select Bucket --</option>
+                    <option value="LIFT">LIFT</option>
+                    <option value="ALUMNI_ASSOCIATION">Alumni Association</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Event/Group (Optional)</label>

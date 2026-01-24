@@ -16,22 +16,54 @@ function StatusBadge({ status }) {
   )
 }
 
+function TypeBadge({ type }) {
+  const styles = {
+    BASIC: 'bg-indigo-100 text-indigo-800',
+    ADDITIONAL: 'bg-teal-100 text-teal-800'
+  }
+  return (
+    <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[type] || 'bg-gray-100'}`}>
+      {type}
+    </span>
+  )
+}
+
+function BucketBadge({ bucket }) {
+  const styles = {
+    LIFT: 'bg-blue-100 text-blue-800',
+    ALUMNI_ASSOCIATION: 'bg-purple-100 text-purple-800'
+  }
+  const labels = {
+    LIFT: 'LIFT',
+    ALUMNI_ASSOCIATION: 'Alumni Assoc.'
+  }
+  return (
+    <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[bucket] || 'bg-gray-100'}`}>
+      {labels[bucket] || bucket}
+    </span>
+  )
+}
+
 export default function AdminContributions() {
   const [list, setList] = useState([])
   const [users, setUsers] = useState([])
   const [filter, setFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [bucketFilter, setBucketFilter] = useState('all')
   const [showModal, setShowModal] = useState(false)
   const [editContribution, setEditContribution] = useState(null)
-  const [formData, setFormData] = useState({ userId: '', amount: '', date: '', notes: '' })
+  const [formData, setFormData] = useState({ userId: '', amount: '', date: '', notes: '', type: '', bucket: '' })
   const [editForm, setEditForm] = useState({ amount: '', date: '', notes: '', status: '' })
   const [toast, setToast] = useState({ show: false, message: '', type: 'info' })
   const [auditLogs, setAuditLogs] = useState({})
   const [expandedAudit, setExpandedAudit] = useState(null)
   const [loadingAudit, setLoadingAudit] = useState(false)
+  const [splitPercentage, setSplitPercentage] = useState(50)
 
   useEffect(() => {
     fetchContributions()
     fetchUsers()
+    fetchSplitSetting()
   }, [])
 
   const fetchContributions = async () => {
@@ -49,6 +81,15 @@ export default function AdminContributions() {
       setUsers(res.data.filter(u => u.role === 'ALUMNI'))
     } catch (err) {
       console.error('Failed to fetch users')
+    }
+  }
+
+  const fetchSplitSetting = async () => {
+    try {
+      const res = await api.get('/admin/settings/basic_contribution_split_lift')
+      setSplitPercentage(parseFloat(res.data.value))
+    } catch (err) {
+      console.error('Failed to fetch split setting')
     }
   }
 
@@ -83,8 +124,12 @@ export default function AdminContributions() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!formData.userId || !formData.amount || !formData.date) {
+    if (!formData.userId || !formData.amount || !formData.date || !formData.type) {
       showToast('Please fill in all required fields', 'error')
+      return
+    }
+    if (formData.type === 'ADDITIONAL' && !formData.bucket) {
+      showToast('Please select a bucket for ADDITIONAL contributions', 'error')
       return
     }
     if (isNaN(formData.amount) || Number(formData.amount) <= 0) {
@@ -94,11 +139,11 @@ export default function AdminContributions() {
     try {
       await api.post('/admin/contributions', formData)
       setShowModal(false)
-      setFormData({ userId: '', amount: '', date: '', notes: '' })
+      setFormData({ userId: '', amount: '', date: '', notes: '', type: '', bucket: '' })
       fetchContributions()
       showToast('Contribution added successfully', 'success')
     } catch (error) {
-      showToast('Failed to add contribution', 'error')
+      showToast(error.response?.data?.error || 'Failed to add contribution', 'error')
     }
   }
 
@@ -153,7 +198,11 @@ export default function AdminContributions() {
     }
   }
 
-  const filteredList = filter === 'all' ? list : list.filter(c => c.status === filter)
+  let filteredList = list
+  if (filter !== 'all') filteredList = filteredList.filter(c => c.status === filter)
+  if (typeFilter !== 'all') filteredList = filteredList.filter(c => c.type === typeFilter)
+  if (bucketFilter !== 'all') filteredList = filteredList.filter(c => c.bucket === bucketFilter)
+
   const pendingCount = list.filter(c => c.status === 'PENDING').length
 
   return (
@@ -181,31 +230,62 @@ export default function AdminContributions() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex space-x-2 mb-4">
-        <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded ${filter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
-        >
-          All ({list.length})
-        </button>
-        <button
-          onClick={() => setFilter('PENDING')}
-          className={`px-4 py-2 rounded ${filter === 'PENDING' ? 'bg-yellow-500 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
-        >
-          Pending ({pendingCount})
-        </button>
-        <button
-          onClick={() => setFilter('APPROVED')}
-          className={`px-4 py-2 rounded ${filter === 'APPROVED' ? 'bg-green-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
-        >
-          Approved ({list.filter(c => c.status === 'APPROVED').length})
-        </button>
-        <button
-          onClick={() => setFilter('REJECTED')}
-          className={`px-4 py-2 rounded ${filter === 'REJECTED' ? 'bg-red-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
-        >
-          Rejected ({list.filter(c => c.status === 'REJECTED').length})
-        </button>
+      <div className="flex flex-wrap gap-4 mb-4">
+        <div>
+          <label className="block text-sm font-medium mb-2">Status</label>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setFilter('all')}
+              className={`px-3 py-1 rounded text-sm ${filter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
+            >
+              All ({list.length})
+            </button>
+            <button
+              onClick={() => setFilter('PENDING')}
+              className={`px-3 py-1 rounded text-sm ${filter === 'PENDING' ? 'bg-yellow-500 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
+            >
+              Pending ({pendingCount})
+            </button>
+            <button
+              onClick={() => setFilter('APPROVED')}
+              className={`px-3 py-1 rounded text-sm ${filter === 'APPROVED' ? 'bg-green-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
+            >
+              Approved
+            </button>
+            <button
+              onClick={() => setFilter('REJECTED')}
+              className={`px-3 py-1 rounded text-sm ${filter === 'REJECTED' ? 'bg-red-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
+            >
+              Rejected
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2">Type</label>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="p-2 border rounded"
+          >
+            <option value="all">All Types</option>
+            <option value="BASIC">Basic</option>
+            <option value="ADDITIONAL">Additional</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2">Bucket</label>
+          <select
+            value={bucketFilter}
+            onChange={(e) => setBucketFilter(e.target.value)}
+            className="p-2 border rounded"
+          >
+            <option value="all">All Buckets</option>
+            <option value="LIFT">LIFT</option>
+            <option value="ALUMNI_ASSOCIATION">Alumni Association</option>
+          </select>
+        </div>
       </div>
 
       {/* Contributions Table */}
@@ -215,6 +295,8 @@ export default function AdminContributions() {
             <tr>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">User</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Amount</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Type</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Bucket Split</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Date</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Status</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Notes</th>
@@ -224,7 +306,7 @@ export default function AdminContributions() {
           <tbody>
             {filteredList.length === 0 ? (
               <tr>
-                <td colSpan="6" className="px-4 py-8 text-center text-gray-500">
+                <td colSpan="8" className="px-4 py-8 text-center text-gray-500">
                   No contributions found
                 </td>
               </tr>
@@ -235,6 +317,23 @@ export default function AdminContributions() {
                     <tr className="border-t hover:bg-gray-50">
                       <td className="px-4 py-3">{c.user?.name || 'Unknown'}</td>
                       <td className="px-4 py-3 font-semibold text-green-600">₹{c.amount.toLocaleString()}</td>
+                      <td className="px-4 py-3"><TypeBadge type={c.type} /></td>
+                      <td className="px-4 py-3">
+                        {c.type === 'BASIC' ? (
+                          <div className="text-xs space-y-1">
+                            <div className="flex items-center gap-1">
+                              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                              <span>LIFT: ₹{(c.liftAmount || 0).toLocaleString()}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                              <span>AA: ₹{(c.aaAmount || 0).toLocaleString()}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <BucketBadge bucket={c.bucket} />
+                        )}
+                      </td>
                       <td className="px-4 py-3">{new Date(c.date).toLocaleDateString()}</td>
                       <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
                       <td className="px-4 py-3 text-gray-600">{c.notes || '-'}</td>
@@ -277,7 +376,7 @@ export default function AdminContributions() {
                     </tr>
                     {expandedAudit === c.id && (
                       <tr className="border-t border-gray-200">
-                        <td colSpan="6" className="px-4 py-4 bg-gray-50">
+                        <td colSpan="8" className="px-4 py-4 bg-gray-50">
                           {loadingAudit && expandedAudit === c.id ? (
                             <div className="text-center py-4">
                               <span className="text-gray-500">Loading audit history...</span>
@@ -299,7 +398,7 @@ export default function AdminContributions() {
       {/* Add Contribution Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg w-full max-w-md">
+          <div className="bg-white p-6 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold mb-4">Add New Contribution</h3>
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
@@ -317,6 +416,34 @@ export default function AdminContributions() {
                 </select>
               </div>
               <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Type *</label>
+                <select
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value, bucket: e.target.value === 'BASIC' ? '' : formData.bucket })}
+                  className="w-full p-2 border rounded"
+                  required
+                >
+                  <option value="">Select type</option>
+                  <option value="BASIC">Basic</option>
+                  <option value="ADDITIONAL">Additional</option>
+                </select>
+              </div>
+              {formData.type === 'ADDITIONAL' && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Bucket *</label>
+                  <select
+                    value={formData.bucket}
+                    onChange={(e) => setFormData({ ...formData, bucket: e.target.value })}
+                    className="w-full p-2 border rounded"
+                    required
+                  >
+                    <option value="">Select bucket</option>
+                    <option value="LIFT">LIFT</option>
+                    <option value="ALUMNI_ASSOCIATION">Alumni Association</option>
+                  </select>
+                </div>
+              )}
+              <div className="mb-4">
                 <label className="block text-sm font-medium mb-1">Amount (₹) *</label>
                 <input
                   type="number"
@@ -329,6 +456,23 @@ export default function AdminContributions() {
                   required
                 />
               </div>
+              {formData.type === 'BASIC' && formData.amount && (
+                <div className="mb-4 p-3 bg-gray-50 rounded border">
+                  <div className="text-sm font-medium text-gray-700 mb-2">Split Preview</div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
+                      <span>LIFT ({splitPercentage}%): </span>
+                      <span className="font-semibold">₹{(Number(formData.amount) * splitPercentage / 100).toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 bg-purple-500 rounded-full"></span>
+                      <span>AA ({100 - splitPercentage}%): </span>
+                      <span className="font-semibold">₹{(Number(formData.amount) * (100 - splitPercentage) / 100).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-1">Date *</label>
                 <input
@@ -354,7 +498,7 @@ export default function AdminContributions() {
                   type="button"
                   onClick={() => {
                     setShowModal(false)
-                    setFormData({ userId: '', amount: '', date: '', notes: '' })
+                    setFormData({ userId: '', amount: '', date: '', notes: '', type: '', bucket: '' })
                   }}
                   className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
                 >

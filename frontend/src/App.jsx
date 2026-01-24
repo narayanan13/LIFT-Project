@@ -14,6 +14,7 @@ import AdminEvents from './pages/admin/Events'
 import AdminAnnouncements from './pages/admin/Announcements'
 import AdminReports from './pages/admin/Reports'
 import AdminMeetings from './pages/admin/Meetings'
+import AdminSettings from './pages/admin/Settings'
 import AlumniReports from './pages/alumni/Reports'
 import AlumniContributions from './pages/alumni/AlumniContributions'
 import AlumniExpenses from './pages/alumni/AlumniExpenses'
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="announcements" element={<AdminAnnouncements />} />
           <Route path="reports" element={<AdminReports />} />
           <Route path="meetings" element={<AdminMeetings />} />
+          <Route path="settings" element={<AdminSettings />} />
           <Route path="profile" element={<AlumniProfile />} />
           <Route path="directory" element={<AlumniDirectory />} />
           <Route path="change-password" element={<ChangePassword />} />

@@ -41,22 +41,60 @@ router.get('/users', authRequired, requireRole('ADMIN'), async (req, res) => {
 });
 
 // Contributions
+const createContributionSchema = Joi.object({
+  userId: Joi.string().required(),
+  amount: Joi.number().positive().required(),
+  date: Joi.date().required(),
+  notes: Joi.string().allow('', null).optional(),
+  type: Joi.string().valid('BASIC', 'ADDITIONAL').required(),
+  bucket: Joi.string().valid('LIFT', 'ALUMNI_ASSOCIATION').when('type', {
+    is: 'ADDITIONAL',
+    then: Joi.required(),
+    otherwise: Joi.optional()
+  })
+});
+
 router.post('/contributions', authRequired, requireRole('ADMIN'), async (req, res) => {
-  const { userId, amount, date, notes } = req.body;
-  if (!userId || !amount || !date) return res.status(400).json({ error: 'Missing fields' });
-  if (isNaN(amount) || Number(amount) <= 0) return res.status(400).json({ error: 'Negative values are not allowed' });
+  const { error, value } = createContributionSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  const { userId, amount, date, notes, type, bucket } = value;
+
   try {
+    let contributionData = {
+      userId,
+      amount: Number(amount),
+      date: new Date(date),
+      notes,
+      type,
+      status: 'APPROVED',
+      createdBy: req.user.id,
+      approvedBy: req.user.id,
+      approvedAt: new Date()
+    };
+
+    if (type === 'BASIC') {
+      // Get split percentage from settings
+      const splitSetting = await prisma.settings.findUnique({
+        where: { key: 'basic_contribution_split_lift' }
+      });
+      const splitPercentage = splitSetting ? parseFloat(splitSetting.value) : 50;
+      const liftAmount = (amount * splitPercentage) / 100;
+      const aaAmount = amount - liftAmount;
+
+      contributionData.bucket = 'LIFT'; // BASIC contributions are tracked under LIFT but split across both
+      contributionData.liftAmount = liftAmount;
+      contributionData.aaAmount = aaAmount;
+      contributionData.splitPercentage = splitPercentage;
+    } else {
+      // ADDITIONAL contributions go to specified bucket
+      contributionData.bucket = bucket;
+      contributionData.liftAmount = bucket === 'LIFT' ? amount : 0;
+      contributionData.aaAmount = bucket === 'ALUMNI_ASSOCIATION' ? amount : 0;
+    }
+
     const c = await prisma.contribution.create({
-      data: {
-        userId,
-        amount: Number(amount),
-        date: new Date(date),
-        notes,
-        status: 'APPROVED',
-        createdBy: req.user.id,
-        approvedBy: req.user.id,
-        approvedAt: new Date()
-      },
+      data: contributionData,
       include: { user: true }
     });
     res.json(c);
@@ -66,8 +104,12 @@ router.post('/contributions', authRequired, requireRole('ADMIN'), async (req, re
 });
 
 router.get('/contributions', authRequired, requireRole('ADMIN'), async (req, res) => {
-  const { status } = req.query;
-  const where = status ? { status } : {};
+  const { status, type, bucket } = req.query;
+  const where = {};
+  if (status) where.status = status;
+  if (type) where.type = type;
+  if (bucket) where.bucket = bucket;
+
   const list = await prisma.contribution.findMany({
     where,
     include: { user: true },
@@ -78,10 +120,17 @@ router.get('/contributions', authRequired, requireRole('ADMIN'), async (req, res
 
 router.put('/contributions/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
   const { id } = req.params;
-  const { amount, date, notes, status } = req.body;
+  const { amount, date, notes, status, type, bucket } = req.body;
 
   try {
+    // Get existing contribution to check type
+    const existing = await prisma.contribution.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Contribution not found' });
+
     const updateData = {};
+    const effectiveType = type !== undefined ? type : existing.type;
+    const effectiveAmount = amount !== undefined ? Number(amount) : existing.amount;
+
     if (amount !== undefined) {
       if (isNaN(amount) || Number(amount) <= 0) {
         return res.status(400).json({ error: 'Invalid amount' });
@@ -95,6 +144,22 @@ router.put('/contributions/:id', authRequired, requireRole('ADMIN'), async (req,
       if (status === 'APPROVED' || status === 'REJECTED') {
         updateData.approvedBy = req.user.id;
         updateData.approvedAt = new Date();
+      }
+    }
+    if (type !== undefined) updateData.type = type;
+    if (bucket !== undefined) updateData.bucket = bucket;
+
+    // Recalculate split amounts if amount or type changed
+    if (amount !== undefined || type !== undefined || bucket !== undefined) {
+      if (effectiveType === 'BASIC') {
+        const splitPercentage = existing.splitPercentage || 50;
+        updateData.liftAmount = (effectiveAmount * splitPercentage) / 100;
+        updateData.aaAmount = effectiveAmount - updateData.liftAmount;
+        updateData.bucket = 'LIFT';
+      } else {
+        const effectiveBucket = bucket !== undefined ? bucket : existing.bucket;
+        updateData.liftAmount = effectiveBucket === 'LIFT' ? effectiveAmount : 0;
+        updateData.aaAmount = effectiveBucket === 'ALUMNI_ASSOCIATION' ? effectiveAmount : 0;
       }
     }
 
@@ -231,10 +296,23 @@ router.delete('/events/:id', authRequired, requireRole('ADMIN'), async (req, res
 });
 
 // Expenses
+const createExpenseSchema = Joi.object({
+  amount: Joi.number().positive().required(),
+  vendor: Joi.string().allow('', null).optional(),
+  purpose: Joi.string().required(),
+  description: Joi.string().allow('', null).optional(),
+  date: Joi.date().required(),
+  category: Joi.string().required(),
+  bucket: Joi.string().valid('LIFT', 'ALUMNI_ASSOCIATION').required(),
+  eventId: Joi.string().allow('', null).optional()
+});
+
 router.post('/expenses', authRequired, requireRole('ADMIN'), async (req, res) => {
-  const { amount, vendor, purpose, description, date, category, eventId } = req.body;
-  if (!amount || !purpose || !date || !category) return res.status(400).json({ error: 'Missing required fields' });
-  if (isNaN(amount) || Number(amount) <= 0) return res.status(400).json({ error: 'Negative values are not allowed' });
+  const { error, value } = createExpenseSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  const { amount, vendor, purpose, description, date, category, bucket, eventId } = value;
+
   try {
     const e = await prisma.expense.create({
       data: {
@@ -244,6 +322,7 @@ router.post('/expenses', authRequired, requireRole('ADMIN'), async (req, res) =>
         description,
         date: new Date(date),
         category,
+        bucket,
         eventId: eventId || null,
         status: 'APPROVED',
         submittedBy: req.user.id,
@@ -262,6 +341,13 @@ router.post('/expenses/bulk', authRequired, requireRole('ADMIN'), async (req, re
   const { expenses } = req.body;
   if (!Array.isArray(expenses) || expenses.length === 0) return res.status(400).json({ error: 'Expenses array is required' });
 
+  // Validate each expense has a bucket
+  for (const exp of expenses) {
+    if (!exp.bucket || !['LIFT', 'ALUMNI_ASSOCIATION'].includes(exp.bucket)) {
+      return res.status(400).json({ error: 'Each expense must have a valid bucket (LIFT or ALUMNI_ASSOCIATION)' });
+    }
+  }
+
   try {
     const createdExpenses = await Promise.all(
       expenses.map(exp =>
@@ -273,6 +359,7 @@ router.post('/expenses/bulk', authRequired, requireRole('ADMIN'), async (req, re
             description: exp.description,
             date: new Date(exp.date),
             category: exp.category,
+            bucket: exp.bucket,
             eventId: exp.eventId || null,
             status: 'APPROVED',
             submittedBy: req.user.id,
@@ -289,8 +376,11 @@ router.post('/expenses/bulk', authRequired, requireRole('ADMIN'), async (req, re
 });
 
 router.get('/expenses', authRequired, requireRole('ADMIN'), async (req, res) => {
-  const { status } = req.query;
-  const where = status ? { status } : {};
+  const { status, bucket } = req.query;
+  const where = {};
+  if (status) where.status = status;
+  if (bucket) where.bucket = bucket;
+
   try {
     const list = await prisma.expense.findMany({
       where,
@@ -328,7 +418,7 @@ router.delete('/expenses/:id', authRequired, requireRole('ADMIN'), async (req, r
 
 router.put('/expenses/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
   const { id } = req.params;
-  const { amount, vendor, purpose, description, date, category, eventId } = req.body;
+  const { amount, vendor, purpose, description, date, category, bucket, eventId } = req.body;
 
   try {
     const updateData = {};
@@ -343,6 +433,12 @@ router.put('/expenses/:id', authRequired, requireRole('ADMIN'), async (req, res)
     if (description !== undefined) updateData.description = description;
     if (date !== undefined) updateData.date = new Date(date);
     if (category !== undefined) updateData.category = category;
+    if (bucket !== undefined) {
+      if (!['LIFT', 'ALUMNI_ASSOCIATION'].includes(bucket)) {
+        return res.status(400).json({ error: 'Invalid bucket' });
+      }
+      updateData.bucket = bucket;
+    }
     if (eventId !== undefined) updateData.eventId = eventId || null;
 
     const expense = await prisma.expense.update({
@@ -688,24 +784,76 @@ router.delete('/action-items/:id', authRequired, requireRole('ADMIN'), async (re
 
 // Budget report
 router.get('/report/budget', authRequired, requireRole('ADMIN'), async (req, res) => {
+  // Overall totals
   const totalContrib = await prisma.contribution.aggregate({
     where: { status: 'APPROVED' },
-    _sum: { amount: true }
+    _sum: { amount: true, liftAmount: true, aaAmount: true }
   });
   const totalExpenses = await prisma.expense.aggregate({
     where: { status: 'APPROVED' },
     _sum: { amount: true }
   });
+
+  // Contribution totals by bucket (using liftAmount and aaAmount)
+  const liftContributions = totalContrib._sum.liftAmount || 0;
+  const aaContributions = totalContrib._sum.aaAmount || 0;
+
+  // Expense totals by bucket
+  const liftExpenses = await prisma.expense.aggregate({
+    where: { status: 'APPROVED', bucket: 'LIFT' },
+    _sum: { amount: true }
+  });
+  const aaExpenses = await prisma.expense.aggregate({
+    where: { status: 'APPROVED', bucket: 'ALUMNI_ASSOCIATION' },
+    _sum: { amount: true }
+  });
+
+  // Contribution type breakdown
+  const basicContrib = await prisma.contribution.aggregate({
+    where: { status: 'APPROVED', type: 'BASIC' },
+    _sum: { amount: true }
+  });
+  const additionalContrib = await prisma.contribution.aggregate({
+    where: { status: 'APPROVED', type: 'ADDITIONAL' },
+    _sum: { amount: true }
+  });
+
+  // Expenses by category
   const byCategory = await prisma.expense.groupBy({
     by: ['category'],
     where: { status: 'APPROVED' },
     _sum: { amount: true }
   });
+
+  // Expenses by category and bucket
+  const byCategoryAndBucket = await prisma.expense.groupBy({
+    by: ['category', 'bucket'],
+    where: { status: 'APPROVED' },
+    _sum: { amount: true }
+  });
+
   res.json({
     totalContrib: totalContrib._sum.amount || 0,
     totalExpenses: totalExpenses._sum.amount || 0,
     remaining: (totalContrib._sum.amount || 0) - (totalExpenses._sum.amount || 0),
-    byCategory
+    buckets: {
+      LIFT: {
+        contributions: liftContributions,
+        expenses: liftExpenses._sum.amount || 0,
+        balance: liftContributions - (liftExpenses._sum.amount || 0)
+      },
+      ALUMNI_ASSOCIATION: {
+        contributions: aaContributions,
+        expenses: aaExpenses._sum.amount || 0,
+        balance: aaContributions - (aaExpenses._sum.amount || 0)
+      }
+    },
+    byContributionType: {
+      BASIC: basicContrib._sum.amount || 0,
+      ADDITIONAL: additionalContrib._sum.amount || 0
+    },
+    byCategory,
+    byCategoryAndBucket
   });
 });
 
@@ -745,6 +893,70 @@ router.get('/contributions/:id/audit-logs', authRequired, requireRole('ADMIN'), 
     res.json(auditLogs);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch contribution audit logs', detail: err.message });
+  }
+});
+
+// Settings management
+router.get('/settings', authRequired, requireRole('ADMIN'), async (req, res) => {
+  try {
+    const settings = await prisma.settings.findMany({
+      orderBy: { key: 'asc' }
+    });
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch settings', detail: err.message });
+  }
+});
+
+router.get('/settings/:key', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { key } = req.params;
+  try {
+    const setting = await prisma.settings.findUnique({ where: { key } });
+    if (!setting) return res.status(404).json({ error: 'Setting not found' });
+    res.json(setting);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch setting', detail: err.message });
+  }
+});
+
+const updateSettingSchema = Joi.object({
+  value: Joi.string().required(),
+  description: Joi.string().allow('', null).optional()
+});
+
+router.put('/settings/:key', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { key } = req.params;
+  const { error, value: validatedBody } = updateSettingSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  const { value, description } = validatedBody;
+
+  // Validate specific settings
+  if (key === 'basic_contribution_split_lift') {
+    const splitValue = parseFloat(value);
+    if (isNaN(splitValue) || splitValue < 0 || splitValue > 100) {
+      return res.status(400).json({ error: 'Split percentage must be between 0 and 100' });
+    }
+  }
+
+  try {
+    const setting = await prisma.settings.upsert({
+      where: { key },
+      update: {
+        value,
+        description: description !== undefined ? description : undefined,
+        updatedBy: req.user.id
+      },
+      create: {
+        key,
+        value,
+        description,
+        updatedBy: req.user.id
+      }
+    });
+    res.json(setting);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update setting', detail: err.message });
   }
 });
 

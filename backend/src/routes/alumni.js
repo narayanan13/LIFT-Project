@@ -1,5 +1,6 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
+import Joi from 'joi';
 import { authRequired } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -391,8 +392,13 @@ router.delete('/profile/jobs/:id', async (req, res) => {
 });
 
 router.get('/contributions', async (req, res) => {
+  const { type, bucket } = req.query;
+  const where = { userId: req.user.id };
+  if (type) where.type = type;
+  if (bucket) where.bucket = bucket;
+
   const contributions = await prisma.contribution.findMany({
-    where: { userId: req.user.id },
+    where,
     orderBy: { date: 'desc' }
   });
 
@@ -405,19 +411,45 @@ router.get('/contributions', async (req, res) => {
     .filter(c => c.status === 'PENDING')
     .reduce((s, c) => s + c.amount, 0);
 
+  // Calculate bucket totals for approved contributions
+  const liftTotal = contributions
+    .filter(c => c.status === 'APPROVED')
+    .reduce((s, c) => s + (c.liftAmount || 0), 0);
+
+  const aaTotal = contributions
+    .filter(c => c.status === 'APPROVED')
+    .reduce((s, c) => s + (c.aaAmount || 0), 0);
+
   res.json({
     total: approvedTotal,
     pendingTotal,
+    liftTotal,
+    aaTotal,
     contributions
   });
 });
 
 // Add contribution (requires admin approval)
+const alumniContributionSchema = Joi.object({
+  amount: Joi.number().positive().required(),
+  date: Joi.date().optional(),
+  notes: Joi.string().allow('', null).optional(),
+  type: Joi.string().valid('BASIC', 'ADDITIONAL').required(),
+  bucket: Joi.string().valid('LIFT', 'ALUMNI_ASSOCIATION').when('type', {
+    is: 'ADDITIONAL',
+    then: Joi.required(),
+    otherwise: Joi.optional()
+  })
+});
+
 router.post('/contributions', async (req, res) => {
-  const { amount, date } = req.body;
-  if (!amount || isNaN(amount) || amount <= 0) {
-    return res.status(400).json({ error: 'Invalid amount' });
+  const { error, value } = alumniContributionSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ error: error.details[0].message });
   }
+
+  const { amount, date, notes, type, bucket } = value;
+
   let contributionDate = new Date();
   if (date) {
     const parsedDate = new Date(date);
@@ -426,15 +458,40 @@ router.post('/contributions', async (req, res) => {
     }
     contributionDate = parsedDate;
   }
+
   try {
+    let contributionData = {
+      userId: req.user.id,
+      amount: Number(amount),
+      date: contributionDate,
+      notes,
+      type,
+      status: 'PENDING',
+      createdBy: req.user.id
+    };
+
+    if (type === 'BASIC') {
+      // Get split percentage from settings
+      const splitSetting = await prisma.settings.findUnique({
+        where: { key: 'basic_contribution_split_lift' }
+      });
+      const splitPercentage = splitSetting ? parseFloat(splitSetting.value) : 50;
+      const liftAmount = (amount * splitPercentage) / 100;
+      const aaAmount = amount - liftAmount;
+
+      contributionData.bucket = 'LIFT'; // BASIC contributions are tracked under LIFT but split across both
+      contributionData.liftAmount = liftAmount;
+      contributionData.aaAmount = aaAmount;
+      contributionData.splitPercentage = splitPercentage;
+    } else {
+      // ADDITIONAL contributions go to specified bucket
+      contributionData.bucket = bucket;
+      contributionData.liftAmount = bucket === 'LIFT' ? amount : 0;
+      contributionData.aaAmount = bucket === 'ALUMNI_ASSOCIATION' ? amount : 0;
+    }
+
     const contribution = await prisma.contribution.create({
-      data: {
-        userId: req.user.id,
-        amount: Number(amount),
-        date: contributionDate,
-        status: 'PENDING',
-        createdBy: req.user.id
-      }
+      data: contributionData
     });
     res.status(201).json(contribution);
   } catch (error) {
@@ -449,36 +506,76 @@ router.get('/announcements', async (req, res) => {
 });
 
 router.get('/budget/summary', async (req, res) => {
+  // Overall totals
   const totalContrib = await prisma.contribution.aggregate({
     where: { status: 'APPROVED' },
-    _sum: { amount: true }
+    _sum: { amount: true, liftAmount: true, aaAmount: true }
   });
   const totalExpenses = await prisma.expense.aggregate({
     where: { status: 'APPROVED' },
     _sum: { amount: true }
   });
+
+  // Contribution totals by bucket
+  const liftContributions = totalContrib._sum.liftAmount || 0;
+  const aaContributions = totalContrib._sum.aaAmount || 0;
+
+  // Expense totals by bucket
+  const liftExpenses = await prisma.expense.aggregate({
+    where: { status: 'APPROVED', bucket: 'LIFT' },
+    _sum: { amount: true }
+  });
+  const aaExpenses = await prisma.expense.aggregate({
+    where: { status: 'APPROVED', bucket: 'ALUMNI_ASSOCIATION' },
+    _sum: { amount: true }
+  });
+
   const byCategory = await prisma.expense.groupBy({
     by: ['category'],
     where: { status: 'APPROVED' },
     _sum: { amount: true }
   });
+
   res.json({
     totalContrib: totalContrib._sum.amount || 0,
     totalExpenses: totalExpenses._sum.amount || 0,
     remaining: (totalContrib._sum.amount || 0) - (totalExpenses._sum.amount || 0),
+    buckets: {
+      LIFT: {
+        contributions: liftContributions,
+        expenses: liftExpenses._sum.amount || 0,
+        balance: liftContributions - (liftExpenses._sum.amount || 0)
+      },
+      ALUMNI_ASSOCIATION: {
+        contributions: aaContributions,
+        expenses: aaExpenses._sum.amount || 0,
+        balance: aaContributions - (aaExpenses._sum.amount || 0)
+      }
+    },
     byCategory
   });
 });
 
 // Expenses
+const alumniExpenseSchema = Joi.object({
+  amount: Joi.number().positive().required(),
+  vendor: Joi.string().allow('', null).optional(),
+  purpose: Joi.string().required(),
+  description: Joi.string().allow('', null).optional(),
+  date: Joi.date().required(),
+  category: Joi.string().required(),
+  bucket: Joi.string().valid('LIFT', 'ALUMNI_ASSOCIATION').required(),
+  eventId: Joi.string().allow('', null).optional()
+});
+
 router.post('/expenses', async (req, res) => {
-  const { amount, vendor, purpose, description, date, category, eventId } = req.body;
-  if (!amount || !purpose || !date || !category) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  const { error, value } = alumniExpenseSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ error: error.details[0].message });
   }
-  if (isNaN(amount) || Number(amount) <= 0) {
-    return res.status(400).json({ error: 'Invalid amount' });
-  }
+
+  const { amount, vendor, purpose, description, date, category, bucket, eventId } = value;
+
   try {
     const expense = await prisma.expense.create({
       data: {
@@ -488,6 +585,7 @@ router.post('/expenses', async (req, res) => {
         description,
         date: new Date(date),
         category,
+        bucket,
         eventId: eventId || null,
         status: 'PENDING',
         submittedBy: req.user.id
@@ -502,9 +600,13 @@ router.post('/expenses', async (req, res) => {
 });
 
 router.get('/expenses', async (req, res) => {
+  const { bucket } = req.query;
+  const where = { submittedBy: req.user.id };
+  if (bucket) where.bucket = bucket;
+
   try {
     const expenses = await prisma.expense.findMany({
-      where: { submittedBy: req.user.id },
+      where,
       include: { event: true },
       orderBy: { createdAt: 'desc' }
     });
@@ -521,11 +623,22 @@ router.get('/expenses', async (req, res) => {
       .filter(e => e.status === 'REJECTED')
       .reduce((sum, e) => sum + e.amount, 0);
 
+    // Calculate bucket totals for approved expenses
+    const liftTotal = expenses
+      .filter(e => e.status === 'APPROVED' && e.bucket === 'LIFT')
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const aaTotal = expenses
+      .filter(e => e.status === 'APPROVED' && e.bucket === 'ALUMNI_ASSOCIATION')
+      .reduce((sum, e) => sum + e.amount, 0);
+
     res.json({
       expenses,
       approvedTotal,
       pendingTotal,
-      rejectedTotal
+      rejectedTotal,
+      liftTotal,
+      aaTotal
     });
   } catch (error) {
     console.error('Error fetching expenses:', error);

@@ -15,6 +15,22 @@ const StatusBadge = ({ status }) => {
   )
 }
 
+const BucketBadge = ({ bucket }) => {
+  const styles = {
+    LIFT: 'bg-blue-100 text-blue-800',
+    ALUMNI_ASSOCIATION: 'bg-purple-100 text-purple-800'
+  }
+  const labels = {
+    LIFT: 'LIFT',
+    ALUMNI_ASSOCIATION: 'Alumni Assoc.'
+  }
+  return (
+    <span className={`px-2 py-1 rounded text-xs font-medium ${styles[bucket] || 'bg-gray-100'}`}>
+      {labels[bucket] || bucket}
+    </span>
+  )
+}
+
 export default function AdminExpenses(){
   const [list, setList] = useState([])
   const [events, setEvents] = useState([])
@@ -25,9 +41,10 @@ export default function AdminExpenses(){
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [filterEvent, setFilterEvent] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
-  const [formData, setFormData] = useState({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', eventId: '' })
-  const [editFormData, setEditFormData] = useState({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', eventId: '' })
-  const [bulkExpenses, setBulkExpenses] = useState([{ amount: '', vendor: '', purpose: '', description: '', date: '', category: '' }])
+  const [filterBucket, setFilterBucket] = useState('all')
+  const [formData, setFormData] = useState({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', bucket: '', eventId: '' })
+  const [editFormData, setEditFormData] = useState({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', bucket: '', eventId: '' })
+  const [bulkExpenses, setBulkExpenses] = useState([{ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', bucket: '' }])
   const [auditLogs, setAuditLogs] = useState({})
   const [expandedAudit, setExpandedAudit] = useState(null)
   const [loadingAudit, setLoadingAudit] = useState(false)
@@ -71,25 +88,25 @@ export default function AdminExpenses(){
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!formData.amount || !formData.purpose || !formData.date || !formData.category) {
-      alert('Please fill in all required fields')
+    if (!formData.amount || !formData.purpose || !formData.date || !formData.category || !formData.bucket) {
+      alert('Please fill in all required fields including bucket')
       return
     }
     try {
       await api.post('/admin/expenses', formData)
       setShowModal(false)
-      setFormData({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', eventId: '' })
+      setFormData({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', bucket: '', eventId: '' })
       fetchExpenses()
     } catch (error) {
-      alert('Failed to add expense')
+      alert(error.response?.data?.error || 'Failed to add expense')
     }
   }
 
   const handleBulkSubmit = async (e) => {
     e.preventDefault()
-    const validExpenses = bulkExpenses.filter(exp => exp.amount && exp.purpose && exp.date && exp.category)
+    const validExpenses = bulkExpenses.filter(exp => exp.amount && exp.purpose && exp.date && exp.category && exp.bucket)
     if (validExpenses.length === 0) {
-      alert('Please fill in at least one expense')
+      alert('Please fill in at least one expense with all required fields including bucket')
       return
     }
     try {
@@ -97,16 +114,16 @@ export default function AdminExpenses(){
         expenses: validExpenses.map(exp => ({ ...exp, eventId: selectedEvent }))
       })
       setShowBulkModal(false)
-      setBulkExpenses([{ amount: '', vendor: '', purpose: '', description: '', date: '', category: '' }])
+      setBulkExpenses([{ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', bucket: '' }])
       setSelectedEvent(null)
       fetchExpenses()
     } catch (error) {
-      alert('Failed to add expenses')
+      alert(error.response?.data?.error || 'Failed to add expenses')
     }
   }
 
   const handleAddBulkRow = () => {
-    setBulkExpenses([...bulkExpenses, { amount: '', vendor: '', purpose: '', description: '', date: '', category: '' }])
+    setBulkExpenses([...bulkExpenses, { amount: '', vendor: '', purpose: '', description: '', date: '', category: '', bucket: '' }])
   }
 
   const handleRemoveBulkRow = (index) => {
@@ -157,6 +174,7 @@ export default function AdminExpenses(){
       description: expense.description || '',
       date: expense.date.split('T')[0],
       category: expense.category,
+      bucket: expense.bucket || 'LIFT',
       eventId: expense.eventId || ''
     })
     setShowEditModal(true)
@@ -164,18 +182,18 @@ export default function AdminExpenses(){
 
   const handleEditSubmit = async (e) => {
     e.preventDefault()
-    if (!editFormData.amount || !editFormData.purpose || !editFormData.date || !editFormData.category) {
-      alert('Please fill in all required fields')
+    if (!editFormData.amount || !editFormData.purpose || !editFormData.date || !editFormData.category || !editFormData.bucket) {
+      alert('Please fill in all required fields including bucket')
       return
     }
     try {
       await api.put(`/admin/expenses/${editingExpense.id}`, editFormData)
       setShowEditModal(false)
       setEditingExpense(null)
-      setEditFormData({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', eventId: '' })
+      setEditFormData({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', bucket: '', eventId: '' })
       fetchExpenses()
     } catch (error) {
-      alert('Failed to update expense')
+      alert(error.response?.data?.error || 'Failed to update expense')
     }
   }
 
@@ -187,6 +205,9 @@ export default function AdminExpenses(){
   }
   if (filterStatus !== 'all') {
     filteredList = filteredList.filter(e => e.status === filterStatus)
+  }
+  if (filterBucket !== 'all') {
+    filteredList = filteredList.filter(e => e.bucket === filterBucket)
   }
 
   const pendingCount = list.filter(e => e.status === 'PENDING').length
@@ -237,6 +258,19 @@ export default function AdminExpenses(){
         </div>
 
         <div>
+          <label className="block text-sm font-medium mb-2">Filter by Bucket</label>
+          <select
+            value={filterBucket}
+            onChange={(e) => setFilterBucket(e.target.value)}
+            className="p-2 border rounded"
+          >
+            <option value="all">All Buckets</option>
+            <option value="LIFT">LIFT</option>
+            <option value="ALUMNI_ASSOCIATION">Alumni Association</option>
+          </select>
+        </div>
+
+        <div>
           <label className="block text-sm font-medium mb-2">Filter by Event/Group</label>
           <select
             value={filterEvent}
@@ -263,6 +297,7 @@ export default function AdminExpenses(){
               <div className="flex items-center gap-2 mb-1">
                 <span className="font-semibold">{e.category} - {e.purpose}</span>
                 <StatusBadge status={e.status} />
+                <BucketBadge bucket={e.bucket} />
               </div>
               {e.vendor && <div className="text-sm text-gray-600">Vendor: {e.vendor}</div>}
               <div className="text-sm text-gray-500">{new Date(e.date).toLocaleDateString()}</div>
@@ -393,6 +428,19 @@ export default function AdminExpenses(){
                 />
               </div>
               <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Bucket *</label>
+                <select
+                  value={formData.bucket}
+                  onChange={(e) => setFormData({ ...formData, bucket: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  required
+                >
+                  <option value="">-- Select Bucket --</option>
+                  <option value="LIFT">LIFT</option>
+                  <option value="ALUMNI_ASSOCIATION">Alumni Association</option>
+                </select>
+              </div>
+              <div className="mb-4">
                 <label className="block text-sm font-medium mb-1">Event/Group (Optional)</label>
                 <select
                   value={formData.eventId}
@@ -494,6 +542,19 @@ export default function AdminExpenses(){
                 />
               </div>
               <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Bucket *</label>
+                <select
+                  value={editFormData.bucket}
+                  onChange={(e) => setEditFormData({ ...editFormData, bucket: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  required
+                >
+                  <option value="">-- Select Bucket --</option>
+                  <option value="LIFT">LIFT</option>
+                  <option value="ALUMNI_ASSOCIATION">Alumni Association</option>
+                </select>
+              </div>
+              <div className="mb-4">
                 <label className="block text-sm font-medium mb-1">Event/Group (Optional)</label>
                 <select
                   value={editFormData.eventId}
@@ -557,6 +618,7 @@ export default function AdminExpenses(){
                       <th className="p-2 text-left">Purpose</th>
                       <th className="p-2 text-left">Date</th>
                       <th className="p-2 text-left">Category</th>
+                      <th className="p-2 text-left">Bucket</th>
                       <th className="p-2 text-left">Description</th>
                       <th className="p-2 text-center">Action</th>
                     </tr>
@@ -610,6 +672,17 @@ export default function AdminExpenses(){
                           />
                         </td>
                         <td className="p-2">
+                          <select
+                            value={exp.bucket}
+                            onChange={(e) => handleBulkRowChange(index, 'bucket', e.target.value)}
+                            className="w-full p-1 border rounded text-sm"
+                          >
+                            <option value="">Bucket</option>
+                            <option value="LIFT">LIFT</option>
+                            <option value="ALUMNI_ASSOCIATION">AA</option>
+                          </select>
+                        </td>
+                        <td className="p-2">
                           <input
                             type="text"
                             value={exp.description}
@@ -641,7 +714,7 @@ export default function AdminExpenses(){
                 >
                   + Add Row
                 </button>
-                <span className="text-sm text-gray-600">{bulkExpenses.filter(e => e.amount && e.purpose && e.date && e.category).length} valid expense(s)</span>
+                <span className="text-sm text-gray-600">{bulkExpenses.filter(e => e.amount && e.purpose && e.date && e.category && e.bucket).length} valid expense(s)</span>
               </div>
 
               <div className="flex justify-end space-x-2">
@@ -649,7 +722,7 @@ export default function AdminExpenses(){
                   type="button"
                   onClick={() => {
                     setShowBulkModal(false)
-                    setBulkExpenses([{ amount: '', vendor: '', purpose: '', description: '', date: '', category: '' }])
+                    setBulkExpenses([{ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', bucket: '' }])
                     setSelectedEvent(null)
                   }}
                   className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"

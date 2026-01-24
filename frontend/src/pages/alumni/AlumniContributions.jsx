@@ -16,19 +16,52 @@ function StatusBadge({ status }) {
   );
 }
 
+function TypeBadge({ type }) {
+  const styles = {
+    BASIC: 'bg-indigo-100 text-indigo-800',
+    ADDITIONAL: 'bg-teal-100 text-teal-800'
+  };
+  return (
+    <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[type] || 'bg-gray-100'}`}>
+      {type}
+    </span>
+  );
+}
+
+function BucketBadge({ bucket }) {
+  const styles = {
+    LIFT: 'bg-blue-100 text-blue-800',
+    ALUMNI_ASSOCIATION: 'bg-purple-100 text-purple-800'
+  };
+  const labels = {
+    LIFT: 'LIFT',
+    ALUMNI_ASSOCIATION: 'Alumni Assoc.'
+  };
+  return (
+    <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[bucket] || 'bg-gray-100'}`}>
+      {labels[bucket] || bucket}
+    </span>
+  );
+}
+
 export default function AlumniContributions() {
-  const [contribs, setContribs] = useState({ total: 0, pendingTotal: 0, contributions: [] });
+  const [contribs, setContribs] = useState({ total: 0, pendingTotal: 0, liftTotal: 0, aaTotal: 0, contributions: [] });
   const [loading, setLoading] = useState(true);
 
   const [newAmount, setNewAmount] = useState('');
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
+  const [newType, setNewType] = useState('');
+  const [newBucket, setNewBucket] = useState('');
+  const [newNotes, setNewNotes] = useState('');
   const [adding, setAdding] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('error');
   const [toastVisible, setToastVisible] = useState(false);
+  const [splitPercentage, setSplitPercentage] = useState(50);
 
   useEffect(() => {
     fetchContributions();
+    fetchSplitSetting();
   }, []);
 
   async function fetchContributions() {
@@ -43,18 +76,45 @@ export default function AlumniContributions() {
     }
   }
 
+  async function fetchSplitSetting() {
+    try {
+      const res = await api.get('/admin/settings/basic_contribution_split_lift');
+      setSplitPercentage(parseFloat(res.data.value));
+    } catch (err) {
+      // Use default 50% if setting not found
+      console.log('Using default split percentage');
+    }
+  }
+
   async function handleAddContribution(e) {
     e.preventDefault();
     if (!newAmount || isNaN(newAmount) || Number(newAmount) <= 0) {
       showToast('Please enter a valid positive amount', 'error');
       return;
     }
+    if (!newType) {
+      showToast('Please select a contribution type', 'error');
+      return;
+    }
+    if (newType === 'ADDITIONAL' && !newBucket) {
+      showToast('Please select a bucket for ADDITIONAL contributions', 'error');
+      return;
+    }
     setAdding(true);
     try {
-      await api.post('/alumni/contributions', { amount: Number(newAmount), date: newDate });
+      await api.post('/alumni/contributions', {
+        amount: Number(newAmount),
+        date: newDate,
+        type: newType,
+        bucket: newType === 'ADDITIONAL' ? newBucket : undefined,
+        notes: newNotes || undefined
+      });
       showToast('Contribution submitted! It will appear once approved by an admin.', 'success');
       setNewAmount('');
       setNewDate(new Date().toISOString().split('T')[0]);
+      setNewType('');
+      setNewBucket('');
+      setNewNotes('');
       await fetchContributions();
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to add contribution', 'error');
@@ -97,25 +157,35 @@ export default function AlumniContributions() {
         </div>
 
         {/* Contribution summary cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 max-w-4xl">
-          <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center">
-            <div className="text-lg font-semibold text-gray-700 mb-2">This Month</div>
-            <div className="text-2xl font-bold text-deep-red">₹{monthlyContribution.toFixed(2)}</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+          <div className="bg-white rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center">
+            <div className="text-sm font-semibold text-gray-700 mb-2">This Month</div>
+            <div className="text-xl font-bold text-deep-red">₹{monthlyContribution.toFixed(2)}</div>
             <div className="text-xs text-gray-500 mt-1">Approved</div>
           </div>
-          <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center">
-            <div className="text-lg font-semibold text-gray-700 mb-2">This Year</div>
-            <div className="text-2xl font-bold text-deep-red">₹{yearlyContribution.toFixed(2)}</div>
+          <div className="bg-white rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center">
+            <div className="text-sm font-semibold text-gray-700 mb-2">This Year</div>
+            <div className="text-xl font-bold text-deep-red">₹{yearlyContribution.toFixed(2)}</div>
             <div className="text-xs text-gray-500 mt-1">Approved</div>
           </div>
-          <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center">
-            <div className="text-lg font-semibold text-gray-700 mb-2">Total Approved</div>
-            <div className="text-2xl font-bold text-green-600">₹{contribs.total.toFixed(2)}</div>
+          <div className="bg-white rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center">
+            <div className="text-sm font-semibold text-gray-700 mb-2">Total Approved</div>
+            <div className="text-xl font-bold text-green-600">₹{contribs.total.toFixed(2)}</div>
           </div>
-          <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center border-l-4 border-yellow-400">
-            <div className="text-lg font-semibold text-gray-700 mb-2">Pending</div>
-            <div className="text-2xl font-bold text-yellow-600">₹{(contribs.pendingTotal || 0).toFixed(2)}</div>
-            <div className="text-xs text-gray-500 mt-1">Awaiting approval</div>
+          <div className="bg-white rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center border-l-4 border-blue-400">
+            <div className="text-sm font-semibold text-gray-700 mb-2">LIFT</div>
+            <div className="text-xl font-bold text-blue-600">₹{(contribs.liftTotal || 0).toFixed(2)}</div>
+            <div className="text-xs text-gray-500 mt-1">Approved</div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center border-l-4 border-purple-400">
+            <div className="text-sm font-semibold text-gray-700 mb-2">Alumni Assoc.</div>
+            <div className="text-xl font-bold text-purple-600">₹{(contribs.aaTotal || 0).toFixed(2)}</div>
+            <div className="text-xs text-gray-500 mt-1">Approved</div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm p-5 flex flex-col items-center justify-center border-l-4 border-yellow-400">
+            <div className="text-sm font-semibold text-gray-700 mb-2">Pending</div>
+            <div className="text-xl font-bold text-yellow-600">₹{(contribs.pendingTotal || 0).toFixed(2)}</div>
+            <div className="text-xs text-gray-500 mt-1">Awaiting</div>
           </div>
         </div>
 
@@ -126,7 +196,7 @@ export default function AlumniContributions() {
         ) : (
           <>
             {/* Contribution addition form */}
-            <div className="mb-8 p-6 bg-white rounded-2xl shadow-sm max-w-md">
+            <div className="mb-8 p-6 bg-white rounded-2xl shadow-sm max-w-lg">
               <div className="flex items-center mb-4">
                 <FaPlus className="text-deep-red mr-2" />
                 <h2 className="text-xl font-semibold">Add New Contribution</h2>
@@ -136,7 +206,38 @@ export default function AlumniContributions() {
               </p>
               <form onSubmit={handleAddContribution} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Type *</label>
+                  <select
+                    value={newType}
+                    onChange={e => {
+                      setNewType(e.target.value);
+                      if (e.target.value === 'BASIC') setNewBucket('');
+                    }}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
+                    disabled={adding}
+                  >
+                    <option value="">Select type</option>
+                    <option value="BASIC">Basic</option>
+                    <option value="ADDITIONAL">Additional</option>
+                  </select>
+                </div>
+                {newType === 'ADDITIONAL' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bucket *</label>
+                    <select
+                      value={newBucket}
+                      onChange={e => setNewBucket(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
+                      disabled={adding}
+                    >
+                      <option value="">Select bucket</option>
+                      <option value="LIFT">LIFT</option>
+                      <option value="ALUMNI_ASSOCIATION">Alumni Association</option>
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹) *</label>
                   <input
                     type="number"
                     placeholder="Enter amount"
@@ -148,6 +249,23 @@ export default function AlumniContributions() {
                     disabled={adding}
                   />
                 </div>
+                {newType === 'BASIC' && newAmount && (
+                  <div className="p-3 bg-gray-50 rounded-lg border">
+                    <div className="text-sm font-medium text-gray-700 mb-2">Split Preview</div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
+                        <span>LIFT ({splitPercentage}%): </span>
+                        <span className="font-semibold">₹{(Number(newAmount) * splitPercentage / 100).toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 bg-purple-500 rounded-full"></span>
+                        <span>AA ({100 - splitPercentage}%): </span>
+                        <span className="font-semibold">₹{(Number(newAmount) * (100 - splitPercentage) / 100).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                   <input
@@ -155,6 +273,17 @@ export default function AlumniContributions() {
                     value={newDate}
                     onChange={e => setNewDate(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
+                    disabled={adding}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                  <textarea
+                    value={newNotes}
+                    onChange={e => setNewNotes(e.target.value)}
+                    rows={2}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
+                    placeholder="Add any notes..."
                     disabled={adding}
                   />
                 </div>
@@ -175,7 +304,7 @@ export default function AlumniContributions() {
             </div>
 
             {/* Contribution history */}
-            <div className="bg-white rounded-2xl shadow-sm p-6 max-w-3xl">
+            <div className="bg-white rounded-2xl shadow-sm p-6 max-w-4xl">
               <div className="flex items-center mb-4">
                 <FaHistory className="text-warm-red mr-2" />
                 <h2 className="text-xl font-semibold text-deep-red">Contribution History</h2>
@@ -183,12 +312,31 @@ export default function AlumniContributions() {
               <div className="space-y-3">
                 {contribs.contributions.length > 0 ? (
                   contribs.contributions.map(c => (
-                    <div key={c.id} className="flex justify-between items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center space-x-4">
-                        <div className="font-semibold text-lg text-deep-red">₹{c.amount.toLocaleString()}</div>
-                        <div className="text-sm text-gray-500">{new Date(c.date).toLocaleDateString()}</div>
+                    <div key={c.id} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center space-x-4">
+                          <div className="font-semibold text-lg text-deep-red">₹{c.amount.toLocaleString()}</div>
+                          <TypeBadge type={c.type} />
+                          {c.type === 'ADDITIONAL' && <BucketBadge bucket={c.bucket} />}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <div className="text-sm text-gray-500">{new Date(c.date).toLocaleDateString()}</div>
+                          <StatusBadge status={c.status} />
+                        </div>
                       </div>
-                      <StatusBadge status={c.status} />
+                      {c.type === 'BASIC' && (
+                        <div className="mt-2 text-xs text-gray-500 flex gap-4">
+                          <span className="flex items-center gap-1">
+                            <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                            LIFT: ₹{(c.liftAmount || 0).toLocaleString()}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                            AA: ₹{(c.aaAmount || 0).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                      {c.notes && <div className="mt-2 text-sm text-gray-600">{c.notes}</div>}
                     </div>
                   ))
                 ) : (

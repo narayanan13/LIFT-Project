@@ -5,6 +5,7 @@ import Expenses from './Expenses'
 import Events from './Events'
 import Announcements from './Announcements'
 import Meetings from './Meetings'
+import Settings from './Settings'
 
 export const adminLinks = [
   { to: '/admin/overview', label: 'Dashboard' },
@@ -15,9 +16,10 @@ export const adminLinks = [
   { to: '/admin/events', label: 'Events/Groups' },
   { to: '/admin/expenses', label: 'Expenses' },
   { to: '/admin/meetings', label: 'Meetings' },
+  { to: '/admin/settings', label: 'Settings' },
   { to: '/admin/change-password', label: 'Change Password' },
 ]
 
 export default {
-  AdminDashboard, Users, Contributions, Expenses, Events, Announcements, Meetings
+  AdminDashboard, Users, Contributions, Expenses, Events, Announcements, Meetings, Settings
 }
