@@ -1,3 +1,8 @@
 DATABASE_URL="your-db-url"
-JWT_SECRET="replace_this_with_a_strong_secret"
+
+# CRITICAL: JWT_SECRET must be set for the application to start
+# Generate a secure random secret using:
+#   node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+JWT_SECRET=""
+
 PORT=4000
