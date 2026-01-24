@@ -25,6 +25,7 @@ model User {
   meetingParticipations   MeetingParticipant[]
   actionItemAssignments   ActionItemAssignee[]
   profile                 AlumniProfile?
+  auditLogs               AuditLog[]
 }
 
 model Contribution {
@@ -222,4 +223,27 @@ model JobHistory {
   createdAt      DateTime      @default(now()) @map("created_at")
 
   @@map("job_history")
+}
+
+model AuditLog {
+  id         String          @id @default(cuid())
+  entityType AuditEntityType @map("entity_type")
+  entityId   String          @map("entity_id")
+  action     AuditAction
+  user       User            @relation(fields: [userId], references: [id])
+  userId     String          @map("user_id")
+  timestamp  DateTime        @default(now())
+  notes      String?         @db.Text
+
+  @@map("audit_log")
+}
+
+enum AuditEntityType {
+  EXPENSE
+  CONTRIBUTION
+}
+
+enum AuditAction {
+  APPROVED
+  REJECTED
 }

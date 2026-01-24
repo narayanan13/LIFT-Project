@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api'
 import { FaPlus, FaEdit, FaCheck, FaTimes } from 'react-icons/fa'
+import AuditLogTable from '../../components/AuditLogTable'
 
 function StatusBadge({ status }) {
   const styles = {
@@ -24,6 +25,9 @@ export default function AdminContributions() {
   const [formData, setFormData] = useState({ userId: '', amount: '', date: '', notes: '' })
   const [editForm, setEditForm] = useState({ amount: '', date: '', notes: '', status: '' })
   const [toast, setToast] = useState({ show: false, message: '', type: 'info' })
+  const [auditLogs, setAuditLogs] = useState({})
+  const [expandedAudit, setExpandedAudit] = useState(null)
+  const [loadingAudit, setLoadingAudit] = useState(false)
 
   useEffect(() => {
     fetchContributions()
@@ -45,6 +49,30 @@ export default function AdminContributions() {
       setUsers(res.data.filter(u => u.role === 'ALUMNI'))
     } catch (err) {
       console.error('Failed to fetch users')
+    }
+  }
+
+  const fetchAuditLogs = async (contributionId) => {
+    setLoadingAudit(true)
+    try {
+      const response = await api.get(`/admin/contributions/${contributionId}/audit-logs`)
+      setAuditLogs(prev => ({ ...prev, [contributionId]: response.data }))
+    } catch (error) {
+      console.error('Failed to fetch audit logs', error)
+      showToast('Failed to load audit history', 'error')
+    } finally {
+      setLoadingAudit(false)
+    }
+  }
+
+  const toggleAuditHistory = async (contributionId) => {
+    if (expandedAudit === contributionId) {
+      setExpandedAudit(null)
+    } else {
+      setExpandedAudit(contributionId)
+      if (!auditLogs[contributionId]) {
+        await fetchAuditLogs(contributionId)
+      }
     }
   }
 
@@ -201,48 +229,72 @@ export default function AdminContributions() {
                 </td>
               </tr>
             ) : (
-              filteredList.map(c => (
-                <tr key={c.id} className="border-t hover:bg-gray-50">
-                  <td className="px-4 py-3">{c.user?.name || 'Unknown'}</td>
-                  <td className="px-4 py-3 font-semibold text-green-600">₹{c.amount.toLocaleString()}</td>
-                  <td className="px-4 py-3">{new Date(c.date).toLocaleDateString()}</td>
-                  <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
-                  <td className="px-4 py-3 text-gray-600">{c.notes || '-'}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center space-x-2">
-                      {c.status === 'PENDING' && (
-                        <>
+              filteredList.map(c => {
+                return (
+                  <React.Fragment key={c.id}>
+                    <tr className="border-t hover:bg-gray-50">
+                      <td className="px-4 py-3">{c.user?.name || 'Unknown'}</td>
+                      <td className="px-4 py-3 font-semibold text-green-600">₹{c.amount.toLocaleString()}</td>
+                      <td className="px-4 py-3">{new Date(c.date).toLocaleDateString()}</td>
+                      <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
+                      <td className="px-4 py-3 text-gray-600">{c.notes || '-'}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center space-x-2">
+                          {c.status === 'PENDING' && (
+                            <>
+                              <button
+                                onClick={() => handleApprove(c.id)}
+                                className="p-2 text-green-600 hover:bg-green-100 rounded"
+                                title="Approve"
+                              >
+                                <FaCheck />
+                              </button>
+                              <button
+                                onClick={() => handleReject(c.id)}
+                                className="p-2 text-red-600 hover:bg-red-100 rounded"
+                                title="Reject"
+                              >
+                                <FaTimes />
+                              </button>
+                            </>
+                          )}
                           <button
-                            onClick={() => handleApprove(c.id)}
-                            className="p-2 text-green-600 hover:bg-green-100 rounded"
-                            title="Approve"
+                            onClick={() => openEditModal(c)}
+                            className="p-2 text-blue-600 hover:bg-blue-100 rounded"
+                            title="Edit"
                           >
-                            <FaCheck />
+                            <FaEdit />
                           </button>
                           <button
-                            onClick={() => handleReject(c.id)}
-                            className="p-2 text-red-600 hover:bg-red-100 rounded"
-                            title="Reject"
+                            onClick={() => toggleAuditHistory(c.id)}
+                            className="px-3 py-1 bg-purple-100 text-purple-600 rounded text-sm hover:bg-purple-200"
+                            title="View History"
                           >
-                            <FaTimes />
+                            {expandedAudit === c.id ? 'Hide History' : 'View History'}
                           </button>
-                        </>
-                      )}
-                      <button
-                        onClick={() => openEditModal(c)}
-                        className="p-2 text-blue-600 hover:bg-blue-100 rounded"
-                        title="Edit"
-                      >
-                        <FaEdit />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedAudit === c.id && (
+                      <tr className="border-t border-gray-200">
+                        <td colSpan="6" className="px-4 py-4 bg-gray-50">
+                          {loadingAudit && expandedAudit === c.id ? (
+                            <div className="text-center py-4">
+                              <span className="text-gray-500">Loading audit history...</span>
+                            </div>
+                          ) : (
+                            <AuditLogTable auditLogs={auditLogs[c.id] || []} />
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                )
+              })
+              )}
+           </tbody>
+         </table>
+       </div>
 
       {/* Add Contribution Modal */}
       {showModal && (

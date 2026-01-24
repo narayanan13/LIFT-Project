@@ -121,6 +121,18 @@ router.put('/contributions/:id/approve', authRequired, requireRole('ADMIN'), asy
       },
       include: { user: true }
     });
+
+    // Create audit log entry
+    await prisma.auditLog.create({
+      data: {
+        entityType: 'CONTRIBUTION',
+        entityId: id,
+        action: 'APPROVED',
+        userId: req.user.id,
+        notes: `Contribution approved by ${req.user.name}`
+      }
+    });
+
     res.json(contribution);
   } catch (e) {
     res.status(500).json({ error: 'Failed to approve contribution', detail: e.message });
@@ -139,6 +151,18 @@ router.put('/contributions/:id/reject', authRequired, requireRole('ADMIN'), asyn
       },
       include: { user: true }
     });
+
+    // Create audit log entry
+    await prisma.auditLog.create({
+      data: {
+        entityType: 'CONTRIBUTION',
+        entityId: id,
+        action: 'REJECTED',
+        userId: req.user.id,
+        notes: `Contribution rejected by ${req.user.name}`
+      }
+    });
+
     res.json(contribution);
   } catch (e) {
     res.status(500).json({ error: 'Failed to reject contribution', detail: e.message });
@@ -350,6 +374,18 @@ router.put('/expenses/:id/approve', authRequired, requireRole('ADMIN'), async (r
         submitter: { select: { id: true, name: true, email: true } }
       }
     });
+
+    // Create audit log entry
+    await prisma.auditLog.create({
+      data: {
+        entityType: 'EXPENSE',
+        entityId: id,
+        action: 'APPROVED',
+        userId: req.user.id,
+        notes: `Expense approved by ${req.user.name}`
+      }
+    });
+
     res.json(expense);
   } catch (err) {
     res.status(500).json({ error: 'Failed to approve expense', detail: err.message });
@@ -371,6 +407,18 @@ router.put('/expenses/:id/reject', authRequired, requireRole('ADMIN'), async (re
         submitter: { select: { id: true, name: true, email: true } }
       }
     });
+
+    // Create audit log entry
+    await prisma.auditLog.create({
+      data: {
+        entityType: 'EXPENSE',
+        entityId: id,
+        action: 'REJECTED',
+        userId: req.user.id,
+        notes: `Expense rejected by ${req.user.name}`
+      }
+    });
+
     res.json(expense);
   } catch (err) {
     res.status(500).json({ error: 'Failed to reject expense', detail: err.message });
@@ -659,6 +707,45 @@ router.get('/report/budget', authRequired, requireRole('ADMIN'), async (req, res
     remaining: (totalContrib._sum.amount || 0) - (totalExpenses._sum.amount || 0),
     byCategory
   });
+});
+
+// Audit log endpoints
+router.get('/expenses/:id/audit-logs', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const auditLogs = await prisma.auditLog.findMany({
+      where: {
+        entityType: 'EXPENSE',
+        entityId: id
+      },
+      include: {
+        user: { select: { id: true, name: true, email: true } }
+      },
+      orderBy: { timestamp: 'desc' }
+    });
+    res.json(auditLogs);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch expense audit logs', detail: err.message });
+  }
+});
+
+router.get('/contributions/:id/audit-logs', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const auditLogs = await prisma.auditLog.findMany({
+      where: {
+        entityType: 'CONTRIBUTION',
+        entityId: id
+      },
+      include: {
+        user: { select: { id: true, name: true, email: true } }
+      },
+      orderBy: { timestamp: 'desc' }
+    });
+    res.json(auditLogs);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch contribution audit logs', detail: err.message });
+  }
 });
 
 export default router;

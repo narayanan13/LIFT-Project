@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api'
+import AuditLogTable from '../../components/AuditLogTable'
 
 const StatusBadge = ({ status }) => {
   const styles = {
@@ -27,6 +28,9 @@ export default function AdminExpenses(){
   const [formData, setFormData] = useState({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', eventId: '' })
   const [editFormData, setEditFormData] = useState({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', eventId: '' })
   const [bulkExpenses, setBulkExpenses] = useState([{ amount: '', vendor: '', purpose: '', description: '', date: '', category: '' }])
+  const [auditLogs, setAuditLogs] = useState({})
+  const [expandedAudit, setExpandedAudit] = useState(null)
+  const [loadingAudit, setLoadingAudit] = useState(false)
 
   useEffect(() => {
     fetchExpenses()
@@ -39,6 +43,30 @@ export default function AdminExpenses(){
 
   const fetchEvents = () => {
     api.get('/admin/events').then(r => setEvents(r.data)).catch(() => console.error('Failed to fetch events'))
+  }
+
+  const fetchAuditLogs = async (expenseId) => {
+    setLoadingAudit(true)
+    try {
+      const response = await api.get(`/admin/expenses/${expenseId}/audit-logs`)
+      setAuditLogs(prev => ({ ...prev, [expenseId]: response.data }))
+    } catch (error) {
+      console.error('Failed to fetch audit logs', error)
+      alert('Failed to load audit history')
+    } finally {
+      setLoadingAudit(false)
+    }
+  }
+
+  const toggleAuditHistory = (expenseId) => {
+    if (expandedAudit === expenseId) {
+      setExpandedAudit(null)
+    } else {
+      setExpandedAudit(expenseId)
+      if (!auditLogs[expenseId]) {
+        fetchAuditLogs(expenseId)
+      }
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -226,10 +254,11 @@ export default function AdminExpenses(){
 
       <div className="space-y-2">
         {filteredList.map(e => (
-          <div key={e.id} className={`p-3 bg-white rounded shadow-sm flex justify-between items-start border-l-4 ${
-            e.status === 'PENDING' ? 'border-yellow-400' :
-            e.status === 'APPROVED' ? 'border-green-400' : 'border-red-400'
-          }`}>
+          <React.Fragment key={e.id}>
+            <div className={`p-3 bg-white rounded shadow-sm flex justify-between items-start border-l-4 ${
+              e.status === 'PENDING' ? 'border-yellow-400' :
+              e.status === 'APPROVED' ? 'border-green-400' : 'border-red-400'
+            }`}>
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="font-semibold">{e.category} - {e.purpose}</span>
@@ -265,17 +294,35 @@ export default function AdminExpenses(){
               >
                 Edit
               </button>
-              <button
-                onClick={() => handleDeleteExpense(e.id)}
-                className="px-3 py-1 bg-gray-100 text-gray-600 rounded text-sm hover:bg-gray-200"
-              >
-                Delete
-              </button>
+               <button
+                 onClick={() => handleDeleteExpense(e.id)}
+                 className="px-3 py-1 bg-gray-100 text-gray-600 rounded text-sm hover:bg-gray-200"
+               >
+                 Delete
+               </button>
+               <button
+                 onClick={() => toggleAuditHistory(e.id)}
+                 className="px-3 py-1 bg-purple-100 text-purple-600 rounded text-sm hover:bg-purple-200"
+               >
+                 {expandedAudit === e.id ? 'Hide History' : 'View History'}
+               </button>
+              </div>
             </div>
-          </div>
+            {expandedAudit === e.id && (
+              <div className="mt-3 p-3 bg-gray-50 rounded">
+                {loadingAudit && expandedAudit === e.id ? (
+                  <div className="text-center py-4">
+                    <span className="text-gray-500">Loading audit history...</span>
+                  </div>
+                ) : (
+                  <AuditLogTable auditLogs={auditLogs[e.id] || []} />
+                )}
+              </div>
+            )}
+          </React.Fragment>
         ))}
-        {filteredList.length === 0 && <p className="text-gray-500">No expenses found</p>}
-      </div>
+         {filteredList.length === 0 && <p className="text-gray-500">No expenses found</p>}
+       </div>
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
