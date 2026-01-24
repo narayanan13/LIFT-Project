@@ -1,0 +1,143 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lift_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        run: cd backend && npm ci
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Setup Prisma
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lift_test
+        run: |
+          npx prisma generate
+          npx prisma migrate deploy
+
+      - name: Seed test database
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lift_test
+        run: npm run seed || true # Seed may fail if already seeded
+
+      - name: Create test users
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lift_test
+        run: |
+          node -e "
+          const { PrismaClient } = require('@prisma/client');
+          const { hashPassword } = require('./src/utils/auth');
+          const prisma = new PrismaClient();
+
+          async function createTestUsers() {
+            const adminHash = hashPassword('testpassword123');
+            const alumniHash = hashPassword('testpassword123');
+
+            await prisma.user.upsert({
+              where: { email: 'admin@test.com' },
+              update: {},
+              create: {
+                name: 'Test Admin',
+                email: 'admin@test.com',
+                passwordHash: adminHash,
+                role: 'ADMIN',
+                active: true
+              }
+            });
+
+            await prisma.user.upsert({
+              where: { email: 'alumni@test.com' },
+              update: {},
+              create: {
+                name: 'Test Alumni',
+                email: 'alumni@test.com',
+                passwordHash: alumniHash,
+                role: 'ALUMNI',
+                active: true
+              }
+            });
+
+            await prisma.\$disconnect();
+          }
+
+          createTestUsers().catch(console.error);
+          "
+
+      - name: Run Playwright tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lift_test
+          API_URL: http://localhost:4000/api
+          APP_URL: http://localhost:3000
+          TEST_ADMIN_EMAIL: admin@test.com
+          TEST_ADMIN_PASSWORD: testpassword123
+          TEST_ALUMNI_EMAIL: alumni@test.com
+          TEST_ALUMNI_PASSWORD: testpassword123
+          CI: true
+        run: npm test
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Upload test screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-screenshots
+          path: test-results/
+          retention-days: 7
+
+      - name: Upload test videos
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-videos
+          path: test-results/
+          retention-days: 7

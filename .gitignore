@@ -1,2 +1,46 @@
-CLAUDE.md
+# CLAUDE.md is in the repo
 .serena/
+
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.test
+.env.local
+.env.*.local
+
+# Build outputs
+frontend/dist/
+build/
+
+# Test artifacts and reports
+playwright-report/
+test-results/
+*.trace
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+
+# Prisma
+backend/prisma/migrations/*/migration.sql
