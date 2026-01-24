@@ -9,7 +9,18 @@ const prisma = new PrismaClient();
 // Manage users
 import Joi from 'joi';
 
-const createUserSchema = Joi.object({ name: Joi.string().required(), email: Joi.string().email().required(), password: Joi.string().min(4).required(), role: Joi.string().valid('ADMIN','ALUMNI').required() });
+const createUserSchema = Joi.object({
+  name: Joi.string().required(),
+  email: Joi.string().email().required(),
+  password: Joi.string()
+    .min(12)
+    .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+    .required()
+    .messages({
+      'string.pattern.base': 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)'
+    }),
+  role: Joi.string().valid('ADMIN','ALUMNI').required()
+});
 
 router.post('/users', authRequired, requireRole('ADMIN'), async (req, res) => {
   const { error, value } = createUserSchema.validate(req.body);

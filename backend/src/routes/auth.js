@@ -8,7 +8,10 @@ import { authRequired } from '../middleware/authMiddleware.js';
 const router = express.Router();
 const prisma = new PrismaClient();
 
-const loginSchema = Joi.object({ email: Joi.string().email().required(), password: Joi.string().min(4).required() });
+const loginSchema = Joi.object({
+  email: Joi.string().email().required(),
+  password: Joi.string().min(12).required()
+});
 
 router.post('/login', async (req, res) => {
   const { error, value } = loginSchema.validate(req.body);
@@ -25,7 +28,13 @@ router.post('/login', async (req, res) => {
 
 const changePasswordSchema = Joi.object({
   currentPassword: Joi.string().required(),
-  newPassword: Joi.string().min(4).required()
+  newPassword: Joi.string()
+    .min(12)
+    .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+    .required()
+    .messages({
+      'string.pattern.base': 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)'
+    })
 });
 
 router.put('/change-password', authRequired, async (req, res) => {
