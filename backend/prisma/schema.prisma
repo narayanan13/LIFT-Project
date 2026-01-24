@@ -24,6 +24,7 @@ model User {
   createdMeetings         Meeting[] @relation("MeetingCreator")
   meetingParticipations   MeetingParticipant[]
   actionItemAssignments   ActionItemAssignee[]
+  profile                 AlumniProfile?
 }
 
 model Contribution {
@@ -178,4 +179,47 @@ model ActionItemAssignee {
 
   @@unique([actionItemId, userId])
   @@map("action_item_assignee")
+}
+
+model AlumniProfile {
+  id               String   @id @default(cuid())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String   @unique @map("user_id")
+
+  // Education (structured - all mandatory)
+  degree           String
+  institution      String
+  graduationYear   Int      @map("graduation_year")
+
+  // DOB (mandatory)
+  dateOfBirth      DateTime @map("date_of_birth")
+
+  // Optional fields
+  contactNumber    String?  @map("contact_number")
+  currentResidence String?  @map("current_residence")
+  profession       String?
+  linkedinProfile  String?  @map("linkedin_profile")
+
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  jobHistory       JobHistory[]
+
+  @@map("alumni_profile")
+}
+
+model JobHistory {
+  id             String        @id @default(cuid())
+  profile        AlumniProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId      String        @map("profile_id")
+
+  companyName    String        @map("company_name")
+  role           String
+  startDate      DateTime      @map("start_date")
+  companyWebsite String?       @map("company_website")
+  endDate        DateTime?     @map("end_date")
+
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  @@map("job_history")
 }

@@ -3,10 +3,14 @@ import AlumniContributions from './AlumniContributions'
 import AlumniExpenses from './AlumniExpenses'
 import AlumniMeetings from './AlumniMeetings'
 import AlumniActionItems from './AlumniActionItems'
+import AlumniProfile from './AlumniProfile'
+import AlumniDirectory from './AlumniDirectory'
 import Reports from './Reports'
 
 export const alumniLinks = [
   { to: '/alumni', label: 'Dashboard' },
+  { to: '/alumni/profile', label: 'My Profile' },
+  { to: '/alumni/directory', label: 'Alumni Directory' },
   { to: '/alumni/contributions', label: 'Contributions' },
   { to: '/alumni/expenses', label: 'Expenses' },
   { to: '/alumni/meetings', label: 'Meetings' },
@@ -15,5 +19,5 @@ export const alumniLinks = [
 ]
 
 export default {
-  AlumniDashboard, AlumniContributions, AlumniExpenses, AlumniMeetings, AlumniActionItems, Reports
+  AlumniDashboard, AlumniContributions, AlumniExpenses, AlumniMeetings, AlumniActionItems, AlumniProfile, AlumniDirectory, Reports
 }

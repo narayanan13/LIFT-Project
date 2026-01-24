@@ -31,6 +31,7 @@ export default function DashboardLayout({ links, role, children }){
   const adminLinks = [
     { to: '/admin/overview', label: 'Overview' },
     { to: '/admin/users', label: 'Users' },
+    { to: '/admin/directory', label: 'Alumni Directory' },
     { to: '/admin/contributions', label: 'Contributions' },
     { to: '/admin/events', label: 'Events/Groups' },
     { to: '/admin/expenses', label: 'Expenses' },
@@ -39,6 +40,8 @@ export default function DashboardLayout({ links, role, children }){
   ]
   const alumniLinks = [
     { to: '/alumni', label: 'Home' },
+    { to: '/alumni/profile', label: 'My Profile' },
+    { to: '/alumni/directory', label: 'Alumni Directory' },
     { to: '/alumni/contributions', label: 'Contributions' },
     { to: '/alumni/expenses', label: 'Expenses' },
     { to: '/alumni/meetings', label: 'Meetings' },

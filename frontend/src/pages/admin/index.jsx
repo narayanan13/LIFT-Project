@@ -9,6 +9,8 @@ import Meetings from './Meetings'
 export const adminLinks = [
   { to: '/admin/overview', label: 'Dashboard' },
   { to: '/admin/users', label: 'Users' },
+  { to: '/admin/profile', label: 'My Profile' },
+  { to: '/admin/directory', label: 'Alumni Directory' },
   { to: '/admin/contributions', label: 'Contributions' },
   { to: '/admin/events', label: 'Events/Groups' },
   { to: '/admin/expenses', label: 'Expenses' },

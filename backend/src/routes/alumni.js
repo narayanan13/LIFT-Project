@@ -14,6 +14,361 @@ router.get('/me', async (req, res) => {
   res.json({ id: user.id, name: user.name, email: user.email, role: user.role, active: user.active });
 });
 
+// ============ PROFILE ENDPOINTS ============
+
+// Get own profile with job history
+router.get('/profile', async (req, res) => {
+  try {
+    const profile = await prisma.alumniProfile.findUnique({
+      where: { userId: req.user.id },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        jobHistory: { orderBy: { startDate: 'desc' } }
+      }
+    });
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found', hasProfile: false });
+    }
+    res.json(profile);
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// Create profile (first-time setup)
+router.post('/profile', async (req, res) => {
+  const { degree, institution, graduationYear, dateOfBirth, contactNumber, currentResidence, profession, linkedinProfile } = req.body;
+
+  // Validate required fields
+  if (!degree || !degree.trim()) {
+    return res.status(400).json({ error: 'Degree is required' });
+  }
+  if (!institution || !institution.trim()) {
+    return res.status(400).json({ error: 'Institution is required' });
+  }
+  if (!graduationYear || isNaN(graduationYear)) {
+    return res.status(400).json({ error: 'Valid graduation year is required' });
+  }
+  const year = parseInt(graduationYear);
+  const currentYear = new Date().getFullYear();
+  if (year < 1950 || year > currentYear + 5) {
+    return res.status(400).json({ error: 'Graduation year must be between 1950 and ' + (currentYear + 5) });
+  }
+  if (!dateOfBirth) {
+    return res.status(400).json({ error: 'Date of birth is required' });
+  }
+  const dob = new Date(dateOfBirth);
+  if (isNaN(dob.getTime()) || dob >= new Date()) {
+    return res.status(400).json({ error: 'Valid date of birth in the past is required' });
+  }
+
+  // Validate LinkedIn URL if provided
+  if (linkedinProfile && linkedinProfile.trim()) {
+    try {
+      new URL(linkedinProfile);
+    } catch {
+      return res.status(400).json({ error: 'Invalid LinkedIn profile URL' });
+    }
+  }
+
+  try {
+    // Check if profile already exists
+    const existing = await prisma.alumniProfile.findUnique({ where: { userId: req.user.id } });
+    if (existing) {
+      return res.status(400).json({ error: 'Profile already exists. Use PUT to update.' });
+    }
+
+    const profile = await prisma.alumniProfile.create({
+      data: {
+        userId: req.user.id,
+        degree: degree.trim(),
+        institution: institution.trim(),
+        graduationYear: year,
+        dateOfBirth: dob,
+        contactNumber: contactNumber?.trim() || null,
+        currentResidence: currentResidence?.trim() || null,
+        profession: profession?.trim() || null,
+        linkedinProfile: linkedinProfile?.trim() || null
+      },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        jobHistory: true
+      }
+    });
+    res.status(201).json(profile);
+  } catch (error) {
+    console.error('Error creating profile:', error);
+    res.status(500).json({ error: 'Failed to create profile' });
+  }
+});
+
+// Update own profile
+router.put('/profile', async (req, res) => {
+  const { degree, institution, graduationYear, dateOfBirth, contactNumber, currentResidence, profession, linkedinProfile } = req.body;
+
+  try {
+    const existing = await prisma.alumniProfile.findUnique({ where: { userId: req.user.id } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Profile not found. Create one first.' });
+    }
+
+    const updateData = {};
+
+    if (degree !== undefined) {
+      if (!degree.trim()) return res.status(400).json({ error: 'Degree cannot be empty' });
+      updateData.degree = degree.trim();
+    }
+    if (institution !== undefined) {
+      if (!institution.trim()) return res.status(400).json({ error: 'Institution cannot be empty' });
+      updateData.institution = institution.trim();
+    }
+    if (graduationYear !== undefined) {
+      const year = parseInt(graduationYear);
+      const currentYear = new Date().getFullYear();
+      if (isNaN(year) || year < 1950 || year > currentYear + 5) {
+        return res.status(400).json({ error: 'Valid graduation year required' });
+      }
+      updateData.graduationYear = year;
+    }
+    if (dateOfBirth !== undefined) {
+      const dob = new Date(dateOfBirth);
+      if (isNaN(dob.getTime()) || dob >= new Date()) {
+        return res.status(400).json({ error: 'Valid date of birth in the past is required' });
+      }
+      updateData.dateOfBirth = dob;
+    }
+    if (contactNumber !== undefined) updateData.contactNumber = contactNumber?.trim() || null;
+    if (currentResidence !== undefined) updateData.currentResidence = currentResidence?.trim() || null;
+    if (profession !== undefined) updateData.profession = profession?.trim() || null;
+    if (linkedinProfile !== undefined) {
+      if (linkedinProfile && linkedinProfile.trim()) {
+        try {
+          new URL(linkedinProfile);
+        } catch {
+          return res.status(400).json({ error: 'Invalid LinkedIn profile URL' });
+        }
+        updateData.linkedinProfile = linkedinProfile.trim();
+      } else {
+        updateData.linkedinProfile = null;
+      }
+    }
+
+    const profile = await prisma.alumniProfile.update({
+      where: { userId: req.user.id },
+      data: updateData,
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        jobHistory: { orderBy: { startDate: 'desc' } }
+      }
+    });
+    res.json(profile);
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// List all alumni profiles (directory)
+router.get('/profiles', async (req, res) => {
+  try {
+    const profiles = await prisma.alumniProfile.findMany({
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        jobHistory: {
+          where: { endDate: null },
+          take: 1,
+          orderBy: { startDate: 'desc' }
+        }
+      },
+      orderBy: { user: { name: 'asc' } }
+    });
+    res.json(profiles);
+  } catch (error) {
+    console.error('Error fetching profiles:', error);
+    res.status(500).json({ error: 'Failed to fetch profiles' });
+  }
+});
+
+// View specific alumni's profile
+router.get('/profiles/:userId', async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const profile = await prisma.alumniProfile.findUnique({
+      where: { userId },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        jobHistory: { orderBy: { startDate: 'desc' } }
+      }
+    });
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+    res.json(profile);
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// ============ JOB HISTORY ENDPOINTS ============
+
+// Add job to history
+router.post('/profile/jobs', async (req, res) => {
+  const { companyName, role, startDate, companyWebsite, endDate } = req.body;
+
+  // Validate required fields
+  if (!companyName || !companyName.trim()) {
+    return res.status(400).json({ error: 'Company name is required' });
+  }
+  if (!role || !role.trim()) {
+    return res.status(400).json({ error: 'Role is required' });
+  }
+  if (!startDate) {
+    return res.status(400).json({ error: 'Start date is required' });
+  }
+  const start = new Date(startDate);
+  if (isNaN(start.getTime())) {
+    return res.status(400).json({ error: 'Invalid start date' });
+  }
+
+  let end = null;
+  if (endDate) {
+    end = new Date(endDate);
+    if (isNaN(end.getTime())) {
+      return res.status(400).json({ error: 'Invalid end date' });
+    }
+    if (end <= start) {
+      return res.status(400).json({ error: 'End date must be after start date' });
+    }
+  }
+
+  // Validate website URL if provided
+  if (companyWebsite && companyWebsite.trim()) {
+    try {
+      new URL(companyWebsite);
+    } catch {
+      return res.status(400).json({ error: 'Invalid company website URL' });
+    }
+  }
+
+  try {
+    // Check if user has a profile
+    const profile = await prisma.alumniProfile.findUnique({ where: { userId: req.user.id } });
+    if (!profile) {
+      return res.status(400).json({ error: 'Create a profile first before adding job history' });
+    }
+
+    const job = await prisma.jobHistory.create({
+      data: {
+        profileId: profile.id,
+        companyName: companyName.trim(),
+        role: role.trim(),
+        startDate: start,
+        companyWebsite: companyWebsite?.trim() || null,
+        endDate: end
+      }
+    });
+    res.status(201).json(job);
+  } catch (error) {
+    console.error('Error adding job:', error);
+    res.status(500).json({ error: 'Failed to add job' });
+  }
+});
+
+// Update job entry
+router.put('/profile/jobs/:id', async (req, res) => {
+  const { id } = req.params;
+  const { companyName, role, startDate, companyWebsite, endDate } = req.body;
+
+  try {
+    // Verify ownership
+    const existing = await prisma.jobHistory.findUnique({
+      where: { id },
+      include: { profile: true }
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'Job entry not found' });
+    }
+    if (existing.profile.userId !== req.user.id) {
+      return res.status(403).json({ error: 'You can only edit your own job history' });
+    }
+
+    const updateData = {};
+
+    if (companyName !== undefined) {
+      if (!companyName.trim()) return res.status(400).json({ error: 'Company name cannot be empty' });
+      updateData.companyName = companyName.trim();
+    }
+    if (role !== undefined) {
+      if (!role.trim()) return res.status(400).json({ error: 'Role cannot be empty' });
+      updateData.role = role.trim();
+    }
+    if (startDate !== undefined) {
+      const start = new Date(startDate);
+      if (isNaN(start.getTime())) return res.status(400).json({ error: 'Invalid start date' });
+      updateData.startDate = start;
+    }
+    if (companyWebsite !== undefined) {
+      if (companyWebsite && companyWebsite.trim()) {
+        try {
+          new URL(companyWebsite);
+        } catch {
+          return res.status(400).json({ error: 'Invalid company website URL' });
+        }
+        updateData.companyWebsite = companyWebsite.trim();
+      } else {
+        updateData.companyWebsite = null;
+      }
+    }
+    if (endDate !== undefined) {
+      if (endDate === null) {
+        updateData.endDate = null;
+      } else {
+        const end = new Date(endDate);
+        if (isNaN(end.getTime())) return res.status(400).json({ error: 'Invalid end date' });
+        const startToCheck = updateData.startDate || existing.startDate;
+        if (end <= startToCheck) return res.status(400).json({ error: 'End date must be after start date' });
+        updateData.endDate = end;
+      }
+    }
+
+    const job = await prisma.jobHistory.update({
+      where: { id },
+      data: updateData
+    });
+    res.json(job);
+  } catch (error) {
+    console.error('Error updating job:', error);
+    res.status(500).json({ error: 'Failed to update job' });
+  }
+});
+
+// Delete job entry
+router.delete('/profile/jobs/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Verify ownership
+    const existing = await prisma.jobHistory.findUnique({
+      where: { id },
+      include: { profile: true }
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'Job entry not found' });
+    }
+    if (existing.profile.userId !== req.user.id) {
+      return res.status(403).json({ error: 'You can only delete your own job history' });
+    }
+
+    await prisma.jobHistory.delete({ where: { id } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting job:', error);
+    res.status(500).json({ error: 'Failed to delete job' });
+  }
+});
+
 router.get('/contributions', async (req, res) => {
   const contributions = await prisma.contribution.findMany({
     where: { userId: req.user.id },

@@ -19,6 +19,8 @@ import AlumniContributions from './pages/alumni/AlumniContributions'
 import AlumniExpenses from './pages/alumni/AlumniExpenses'
 import AlumniMeetings from './pages/alumni/AlumniMeetings'
 import AlumniActionItems from './pages/alumni/AlumniActionItems'
+import AlumniProfile from './pages/alumni/AlumniProfile'
+import AlumniDirectory from './pages/alumni/AlumniDirectory'
 import ChangePassword from './pages/ChangePassword'
 
 function useAuth() {
@@ -48,10 +50,14 @@ export default function App() {
           <Route path="announcements" element={<AdminAnnouncements />} />
           <Route path="reports" element={<AdminReports />} />
           <Route path="meetings" element={<AdminMeetings />} />
+          <Route path="profile" element={<AlumniProfile />} />
+          <Route path="directory" element={<AlumniDirectory />} />
           <Route path="change-password" element={<ChangePassword />} />
         </Route>
         <Route path="/alumni" element={<Protected role={'ALUMNI'}><DashboardLayout role={'ALUMNI'} /></Protected>} >
           <Route index element={<AlumniDashboard/>} />
+          <Route path="profile" element={<AlumniProfile />} />
+          <Route path="directory" element={<AlumniDirectory />} />
           <Route path="contributions" element={<AlumniContributions />} />
           <Route path="expenses" element={<AlumniExpenses />} />
           <Route path="meetings" element={<AlumniMeetings />} />
