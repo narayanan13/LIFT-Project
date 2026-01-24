@@ -38,7 +38,7 @@ router.get('/profile', async (req, res) => {
 
 // Create profile (first-time setup)
 router.post('/profile', async (req, res) => {
-  const { degree, institution, graduationYear, dateOfBirth, contactNumber, currentResidence, profession, linkedinProfile } = req.body;
+  const { degree, institution, graduationYear, dateOfBirth, contactNumber, shareContactNumber, currentResidence, profession, linkedinProfile } = req.body;
 
   // Validate required fields
   if (!degree || !degree.trim()) {
@@ -87,6 +87,7 @@ router.post('/profile', async (req, res) => {
         graduationYear: year,
         dateOfBirth: dob,
         contactNumber: contactNumber?.trim() || null,
+        shareContactNumber: shareContactNumber !== undefined ? Boolean(shareContactNumber) : true,
         currentResidence: currentResidence?.trim() || null,
         profession: profession?.trim() || null,
         linkedinProfile: linkedinProfile?.trim() || null
@@ -105,7 +106,7 @@ router.post('/profile', async (req, res) => {
 
 // Update own profile
 router.put('/profile', async (req, res) => {
-  const { degree, institution, graduationYear, dateOfBirth, contactNumber, currentResidence, profession, linkedinProfile } = req.body;
+  const { degree, institution, graduationYear, dateOfBirth, contactNumber, shareContactNumber, currentResidence, profession, linkedinProfile } = req.body;
 
   try {
     const existing = await prisma.alumniProfile.findUnique({ where: { userId: req.user.id } });
@@ -139,6 +140,7 @@ router.put('/profile', async (req, res) => {
       updateData.dateOfBirth = dob;
     }
     if (contactNumber !== undefined) updateData.contactNumber = contactNumber?.trim() || null;
+    if (shareContactNumber !== undefined) updateData.shareContactNumber = Boolean(shareContactNumber);
     if (currentResidence !== undefined) updateData.currentResidence = currentResidence?.trim() || null;
     if (profession !== undefined) updateData.profession = profession?.trim() || null;
     if (linkedinProfile !== undefined) {
@@ -183,7 +185,19 @@ router.get('/profiles', async (req, res) => {
       },
       orderBy: { user: { name: 'asc' } }
     });
-    res.json(profiles);
+
+    // Hide contact number for profiles that don't share it
+    const sanitizedProfiles = profiles.map(profile => {
+      if (!profile.shareContactNumber && profile.userId !== req.user.id) {
+        return {
+          ...profile,
+          contactNumber: null
+        };
+      }
+      return profile;
+    });
+
+    res.json(sanitizedProfiles);
   } catch (error) {
     console.error('Error fetching profiles:', error);
     res.status(500).json({ error: 'Failed to fetch profiles' });
@@ -204,7 +218,14 @@ router.get('/profiles/:userId', async (req, res) => {
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
-    res.json(profile);
+
+    // Hide contact number if user doesn't share it and it's not their own profile
+    const sanitizedProfile = {
+      ...profile,
+      contactNumber: (!profile.shareContactNumber && profile.userId !== req.user.id) ? null : profile.contactNumber
+    };
+
+    res.json(sanitizedProfile);
   } catch (error) {
     console.error('Error fetching profile:', error);
     res.status(500).json({ error: 'Failed to fetch profile' });

@@ -195,11 +195,12 @@ model AlumniProfile {
   // DOB (mandatory)
   dateOfBirth      DateTime @map("date_of_birth")
 
-  // Optional fields
-  contactNumber    String?  @map("contact_number")
-  currentResidence String?  @map("current_residence")
-  profession       String?
-  linkedinProfile  String?  @map("linkedin_profile")
+   // Optional fields
+   contactNumber    String?  @map("contact_number")
+   shareContactNumber Boolean @default(true) @map("share_contact_number")
+   currentResidence String?  @map("current_residence")
+   profession       String?
+   linkedinProfile  String?  @map("linkedin_profile")
 
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")

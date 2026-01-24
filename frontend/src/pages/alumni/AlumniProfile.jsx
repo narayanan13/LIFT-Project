@@ -21,6 +21,7 @@ export default function AlumniProfile() {
     graduationYear: '',
     dateOfBirth: '',
     contactNumber: '',
+    shareContactNumber: true,
     currentResidence: '',
     profession: '',
     linkedinProfile: ''
@@ -76,6 +77,7 @@ export default function AlumniProfile() {
       graduationYear: '',
       dateOfBirth: '',
       contactNumber: '',
+      shareContactNumber: true,
       currentResidence: '',
       profession: '',
       linkedinProfile: ''
@@ -91,6 +93,7 @@ export default function AlumniProfile() {
       graduationYear: profile.graduationYear || '',
       dateOfBirth: profile.dateOfBirth ? profile.dateOfBirth.split('T')[0] : '',
       contactNumber: profile.contactNumber || '',
+      shareContactNumber: profile.shareContactNumber !== undefined ? profile.shareContactNumber : true,
       currentResidence: profile.currentResidence || '',
       profession: profile.profession || '',
       linkedinProfile: profile.linkedinProfile || ''
@@ -274,12 +277,23 @@ export default function AlumniProfile() {
                   <div className="font-medium">{new Date(profile.dateOfBirth).toLocaleDateString()}</div>
                 </div>
 
-                {profile.contactNumber && (
-                  <div>
-                    <div className="text-sm text-gray-500">Contact Number</div>
-                    <div className="font-medium">{profile.contactNumber}</div>
-                  </div>
-                )}
+                 {profile.contactNumber && (
+                   <div>
+                     <div className="text-sm text-gray-500">Contact Number</div>
+                     <div className="font-medium">{profile.contactNumber}</div>
+                   </div>
+                 )}
+
+                 <div>
+                   <div className="text-sm text-gray-500">Privacy Settings</div>
+                   <div className="font-medium">
+                     {profile.shareContactNumber ? (
+                       <span className="text-green-600">Contact number is visible to other alumni</span>
+                     ) : (
+                       <span className="text-gray-600">Contact number is hidden from other alumni</span>
+                     )}
+                   </div>
+                 </div>
 
                 {profile.currentResidence && (
                   <div>
@@ -451,17 +465,29 @@ export default function AlumniProfile() {
                 <div className="border-t pt-4">
                   <h3 className="font-medium text-gray-700 mb-3">Additional Info (Optional)</h3>
                   <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Contact Number</label>
-                      <input
-                        type="tel"
-                        placeholder="e.g., +91 9876543210"
-                        value={profileForm.contactNumber}
-                        onChange={e => setProfileForm({ ...profileForm, contactNumber: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
-                        disabled={savingProfile}
-                      />
-                    </div>
+                     <div>
+                       <label className="block text-sm font-medium text-gray-700 mb-1">Contact Number</label>
+                       <input
+                         type="tel"
+                         placeholder="e.g., +91 9876543210"
+                         value={profileForm.contactNumber}
+                         onChange={e => setProfileForm({ ...profileForm, contactNumber: e.target.value })}
+                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
+                         disabled={savingProfile}
+                       />
+                     </div>
+                     <div>
+                       <label className="flex items-center space-x-2">
+                         <input
+                           type="checkbox"
+                           checked={profileForm.shareContactNumber}
+                           onChange={e => setProfileForm({ ...profileForm, shareContactNumber: e.target.checked })}
+                           disabled={savingProfile}
+                           className="w-4 h-4 text-deep-red focus:ring-deep-red rounded border-gray-300"
+                         />
+                         <span className="text-sm text-gray-700">Share contact number with other alumni</span>
+                       </label>
+                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Current Residence</label>
                       <input
