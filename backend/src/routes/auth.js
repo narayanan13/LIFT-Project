@@ -8,9 +8,11 @@ import { authRequired } from '../middleware/authMiddleware.js';
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// Login schema: only validate email format, password length is not validated
+// Existing users may have shorter passwords created before the new policy
 const loginSchema = Joi.object({
   email: Joi.string().email().required(),
-  password: Joi.string().min(12).required()
+  password: Joi.string().required() // No min length - let hash verification handle auth
 });
 
 router.post('/login', async (req, res) => {
