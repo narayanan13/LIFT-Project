@@ -893,13 +893,18 @@ router.delete('/meetings/:id', async (req, res) => {
 });
 
 // Add action item to own meeting
-router.post('/meetings/:id/action-items', async (req, res) => {
-  const { id } = req.params;
-  const { description, targetDate, assigneeIds } = req.body;
+const createAlumniActionItemSchema = Joi.object({
+  description: Joi.string().required(),
+  targetDate: Joi.date().required(),
+  assigneeIds: Joi.array().items(Joi.string()).min(1).required()
+});
 
-  if (!description || !targetDate || !assigneeIds || !assigneeIds.length) {
-    return res.status(400).json({ error: 'Missing required fields: description, targetDate, assigneeIds' });
-  }
+router.post('/meetings/:id/action-items', async (req, res) => {
+  const { error, value } = createAlumniActionItemSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  const { id } = req.params;
+  const { description, targetDate, assigneeIds } = value;
 
   try {
     // Verify ownership
@@ -924,7 +929,6 @@ router.post('/meetings/:id/action-items', async (req, res) => {
     });
     res.status(201).json(actionItem);
   } catch (error) {
-    console.error('Error creating action item:', error);
     res.status(500).json({ error: 'Failed to create action item' });
   }
 });

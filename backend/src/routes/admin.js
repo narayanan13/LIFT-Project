@@ -22,6 +22,13 @@ const createUserSchema = Joi.object({
   role: Joi.string().valid('ADMIN','ALUMNI').required()
 });
 
+const updateUserSchema = Joi.object({
+  name: Joi.string().optional(),
+  email: Joi.string().email().optional(),
+  role: Joi.string().valid('ADMIN','ALUMNI').optional(),
+  active: Joi.boolean().optional()
+}).min(1); // At least one field must be provided
+
 router.post('/users', authRequired, requireRole('ADMIN'), async (req, res) => {
   const { error, value } = createUserSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.details[0].message });
@@ -36,13 +43,16 @@ router.post('/users', authRequired, requireRole('ADMIN'), async (req, res) => {
 });
 
 router.put('/users/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { error, value } = updateUserSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
   const { id } = req.params;
-  const { name, email, role, active } = req.body;
+  const { name, email, role, active } = value;
   try {
     const user = await prisma.user.update({ where: { id }, data: { name, email, role, active } });
     res.json(user);
   } catch (e) {
-    res.status(500).json({ error: 'Failed to update user', detail: e.message });
+    res.status(500).json({ error: 'Failed to update user' });
   }
 });
 
@@ -251,14 +261,28 @@ router.get('/contributions/pending/count', authRequired, requireRole('ADMIN'), a
 });
 
 // Events/Groups
+const createEventSchema = Joi.object({
+  name: Joi.string().required(),
+  description: Joi.string().allow('', null).optional(),
+  date: Joi.date().optional()
+});
+
+const updateEventSchema = Joi.object({
+  name: Joi.string().optional(),
+  description: Joi.string().allow('', null).optional(),
+  date: Joi.date().optional()
+}).min(1);
+
 router.post('/events', authRequired, requireRole('ADMIN'), async (req, res) => {
-  const { name, description, date } = req.body;
-  if (!name) return res.status(400).json({ error: 'Event name is required' });
+  const { error, value } = createEventSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  const { name, description, date } = value;
   try {
     const event = await prisma.event.create({ data: { name, description, date: date ? new Date(date) : null } });
     res.json(event);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create event', detail: err.message });
+    res.status(500).json({ error: 'Failed to create event' });
   }
 });
 
@@ -267,7 +291,7 @@ router.get('/events', authRequired, requireRole('ADMIN'), async (req, res) => {
     const events = await prisma.event.findMany({ include: { expenses: true }, orderBy: { date: 'desc' } });
     res.json(events);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch events', detail: err.message });
+    res.status(500).json({ error: 'Failed to fetch events' });
   }
 });
 
@@ -278,18 +302,21 @@ router.get('/events/:id', authRequired, requireRole('ADMIN'), async (req, res) =
     if (!event) return res.status(404).json({ error: 'Event not found' });
     res.json(event);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch event', detail: err.message });
+    res.status(500).json({ error: 'Failed to fetch event' });
   }
 });
 
 router.put('/events/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { error, value } = updateEventSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
   const { id } = req.params;
-  const { name, description, date } = req.body;
+  const { name, description, date } = value;
   try {
     const event = await prisma.event.update({ where: { id }, data: { name, description, date: date ? new Date(date) : undefined } });
     res.json(event);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update event', detail: err.message });
+    res.status(500).json({ error: 'Failed to update event' });
   }
 });
 
@@ -302,7 +329,7 @@ router.delete('/events/:id', authRequired, requireRole('ADMIN'), async (req, res
     const event = await prisma.event.delete({ where: { id } });
     res.json(event);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete event', detail: err.message });
+    res.status(500).json({ error: 'Failed to delete event' });
   }
 });
 
@@ -538,9 +565,16 @@ router.get('/expenses/pending/count', authRequired, requireRole('ADMIN'), async 
 });
 
 // Announcements
+const createAnnouncementSchema = Joi.object({
+  title: Joi.string().required(),
+  message: Joi.string().required()
+});
+
 router.post('/announcements', async (req, res) => {
-  const { title, message } = req.body;
-  if (!title || !message) return res.status(400).json({ error: 'Missing fields' });
+  const { error, value } = createAnnouncementSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  const { title, message } = value;
   const a = await prisma.announcement.create({ data: { title, message } });
   res.json(a);
 });
@@ -654,9 +688,28 @@ router.get('/meetings/:id', authRequired, requireRole('ADMIN'), async (req, res)
   }
 });
 
+const updateMeetingSchema = Joi.object({
+  title: Joi.string().allow('', null).optional(),
+  date: Joi.date().optional(),
+  startTime: Joi.string().pattern(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
+  endTime: Joi.string().pattern(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
+  location: Joi.string().optional(),
+  notes: Joi.string().allow('', null).optional(),
+  participantIds: Joi.array().items(Joi.string()).optional(),
+  actionItems: Joi.array().items(Joi.object({
+    description: Joi.string().required(),
+    targetDate: Joi.date().required(),
+    assigneeIds: Joi.array().items(Joi.string()).min(1).required(),
+    status: Joi.string().valid('PENDING', 'COMPLETED').optional()
+  })).optional()
+}).min(1);
+
 router.put('/meetings/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { error, value } = updateMeetingSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
   const { id } = req.params;
-  const { title, date, startTime, endTime, location, notes, participantIds, actionItems } = req.body;
+  const { title, date, startTime, endTime, location, notes, participantIds, actionItems } = value;
 
   try {
     // Update meeting basic fields
@@ -708,7 +761,7 @@ router.put('/meetings/:id', authRequired, requireRole('ADMIN'), async (req, res)
     });
     res.json(meeting);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update meeting', detail: err.message });
+    res.status(500).json({ error: 'Failed to update meeting' });
   }
 });
 
@@ -723,13 +776,25 @@ router.delete('/meetings/:id', authRequired, requireRole('ADMIN'), async (req, r
 });
 
 // Action Items management
-router.post('/meetings/:id/action-items', authRequired, requireRole('ADMIN'), async (req, res) => {
-  const { id } = req.params;
-  const { description, targetDate, assigneeIds } = req.body;
+const createActionItemSchema = Joi.object({
+  description: Joi.string().required(),
+  targetDate: Joi.date().required(),
+  assigneeIds: Joi.array().items(Joi.string()).min(1).required()
+});
 
-  if (!description || !targetDate || !assigneeIds || !assigneeIds.length) {
-    return res.status(400).json({ error: 'Missing required fields: description, targetDate, assigneeIds' });
-  }
+const updateActionItemSchema = Joi.object({
+  description: Joi.string().optional(),
+  targetDate: Joi.date().optional(),
+  assigneeIds: Joi.array().items(Joi.string()).optional(),
+  status: Joi.string().valid('PENDING', 'COMPLETED').optional()
+}).min(1);
+
+router.post('/meetings/:id/action-items', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { error, value } = createActionItemSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  const { id } = req.params;
+  const { description, targetDate, assigneeIds } = value;
 
   try {
     const actionItem = await prisma.actionItem.create({
@@ -745,13 +810,16 @@ router.post('/meetings/:id/action-items', authRequired, requireRole('ADMIN'), as
     });
     res.status(201).json(actionItem);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create action item', detail: err.message });
+    res.status(500).json({ error: 'Failed to create action item' });
   }
 });
 
 router.put('/action-items/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { error, value } = updateActionItemSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
   const { id } = req.params;
-  const { description, targetDate, assigneeIds, status } = req.body;
+  const { description, targetDate, assigneeIds, status } = value;
 
   try {
     const updateData = {};
@@ -779,7 +847,7 @@ router.put('/action-items/:id', authRequired, requireRole('ADMIN'), async (req, 
     });
     res.json(actionItem);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update action item', detail: err.message });
+    res.status(500).json({ error: 'Failed to update action item' });
   }
 });
 
@@ -789,7 +857,7 @@ router.delete('/action-items/:id', authRequired, requireRole('ADMIN'), async (re
     await prisma.actionItem.delete({ where: { id } });
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete action item', detail: err.message });
+    res.status(500).json({ error: 'Failed to delete action item' });
   }
 });
 
@@ -908,6 +976,10 @@ router.get('/contributions/:id/audit-logs', authRequired, requireRole('ADMIN'), 
 });
 
 // Settings management
+const settingKeySchema = Joi.object({
+  key: Joi.string().pattern(/^[a-zA-Z0-9_-]+$/).required()
+});
+
 router.get('/settings', authRequired, requireRole('ADMIN'), async (req, res) => {
   try {
     const settings = await prisma.settings.findMany({
@@ -915,18 +987,21 @@ router.get('/settings', authRequired, requireRole('ADMIN'), async (req, res) => 
     });
     res.json(settings);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch settings', detail: err.message });
+    res.status(500).json({ error: 'Failed to fetch settings' });
   }
 });
 
 router.get('/settings/:key', authRequired, requireRole('ADMIN'), async (req, res) => {
-  const { key } = req.params;
+  const { error, value } = settingKeySchema.validate(req.params);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  const { key } = value;
   try {
     const setting = await prisma.settings.findUnique({ where: { key } });
     if (!setting) return res.status(404).json({ error: 'Setting not found' });
     res.json(setting);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch setting', detail: err.message });
+    res.status(500).json({ error: 'Failed to fetch setting' });
   }
 });
 
@@ -936,6 +1011,9 @@ const updateSettingSchema = Joi.object({
 });
 
 router.put('/settings/:key', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { error: paramError } = settingKeySchema.validate(req.params);
+  if (paramError) return res.status(400).json({ error: paramError.details[0].message });
+
   const { key } = req.params;
   const { error, value: validatedBody } = updateSettingSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.details[0].message });
@@ -967,7 +1045,7 @@ router.put('/settings/:key', authRequired, requireRole('ADMIN'), async (req, res
     });
     res.json(setting);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update setting', detail: err.message });
+    res.status(500).json({ error: 'Failed to update setting' });
   }
 });
 
