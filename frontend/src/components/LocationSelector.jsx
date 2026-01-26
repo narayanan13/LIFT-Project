@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../api';
 
 export default function LocationSelector({
@@ -21,6 +21,13 @@ export default function LocationSelector({
   // Selected IDs for cascading
   const [selectedCountryId, setSelectedCountryId] = useState(null);
   const [selectedStateId, setSelectedStateId] = useState(null);
+  const [selectedCityId, setSelectedCityId] = useState(null);
+
+  // Track if we're initializing from props
+  const initializedRef = useRef(false);
+  const countryRef = useRef(country);
+  const stateRef = useRef(state);
+  const cityRef = useRef(city);
 
   // Fetch countries on mount
   useEffect(() => {
@@ -31,9 +38,9 @@ export default function LocationSelector({
         setCountries(res.data);
 
         // If country name is provided, find matching country
-        if (country) {
+        if (countryRef.current) {
           const matchedCountry = res.data.find(
-            c => c.name.toLowerCase() === country.toLowerCase()
+            c => c.name.toLowerCase() === countryRef.current.toLowerCase()
           );
           if (matchedCountry) {
             setSelectedCountryId(matchedCountry.id);
@@ -54,6 +61,7 @@ export default function LocationSelector({
       if (!selectedCountryId) {
         setStates([]);
         setSelectedStateId(null);
+        setSelectedCityId(null);
         return;
       }
 
@@ -62,10 +70,10 @@ export default function LocationSelector({
         const res = await api.get(`/locations/countries/${selectedCountryId}/states`);
         setStates(res.data);
 
-        // If state name is provided, find matching state
-        if (state) {
+        // If state name is provided and we're initializing, find matching state
+        if (stateRef.current && !initializedRef.current) {
           const matchedState = res.data.find(
-            s => s.name.toLowerCase() === state.toLowerCase()
+            s => s.name.toLowerCase() === stateRef.current.toLowerCase()
           );
           if (matchedState) {
             setSelectedStateId(matchedState.id);
@@ -85,6 +93,7 @@ export default function LocationSelector({
     async function fetchCities() {
       if (!selectedStateId) {
         setCities([]);
+        setSelectedCityId(null);
         return;
       }
 
@@ -92,6 +101,17 @@ export default function LocationSelector({
         setLoadingCities(true);
         const res = await api.get(`/locations/states/${selectedStateId}/cities`);
         setCities(res.data);
+
+        // If city name is provided and we're initializing, find matching city
+        if (cityRef.current && !initializedRef.current) {
+          const matchedCity = res.data.find(
+            c => c.name.toLowerCase() === cityRef.current.toLowerCase()
+          );
+          if (matchedCity) {
+            setSelectedCityId(matchedCity.id);
+            initializedRef.current = true; // Mark as initialized
+          }
+        }
       } catch (err) {
         console.error('Failed to fetch cities:', err);
       } finally {
@@ -101,11 +121,41 @@ export default function LocationSelector({
     fetchCities();
   }, [selectedStateId]);
 
+  // Reset initialization when props change significantly (e.g., opening edit modal)
+  useEffect(() => {
+    if (country !== countryRef.current || state !== stateRef.current || city !== cityRef.current) {
+      countryRef.current = country;
+      stateRef.current = state;
+      cityRef.current = city;
+
+      // If all values are cleared, reset the component
+      if (!country && !state && !city) {
+        initializedRef.current = false;
+        setSelectedCountryId(null);
+        setSelectedStateId(null);
+        setSelectedCityId(null);
+        setStates([]);
+        setCities([]);
+      } else if (country && countries.length > 0) {
+        // Re-initialize with new values
+        initializedRef.current = false;
+        const matchedCountry = countries.find(
+          c => c.name.toLowerCase() === country.toLowerCase()
+        );
+        if (matchedCountry && matchedCountry.id !== selectedCountryId) {
+          setSelectedCountryId(matchedCountry.id);
+        }
+      }
+    }
+  }, [country, state, city, countries]);
+
   function handleCountryChange(e) {
     const countryId = e.target.value ? parseInt(e.target.value) : null;
     setSelectedCountryId(countryId);
     setSelectedStateId(null);
+    setSelectedCityId(null);
     setCities([]);
+    initializedRef.current = true; // User made a selection
 
     const selectedCountry = countries.find(c => c.id === countryId);
     onCountryChange(selectedCountry?.name || '');
@@ -116,7 +166,9 @@ export default function LocationSelector({
   function handleStateChange(e) {
     const stateId = e.target.value ? parseInt(e.target.value) : null;
     setSelectedStateId(stateId);
+    setSelectedCityId(null);
     setCities([]);
+    initializedRef.current = true; // User made a selection
 
     const selectedState = states.find(s => s.id === stateId);
     onStateChange(selectedState?.name || '');
@@ -125,6 +177,8 @@ export default function LocationSelector({
 
   function handleCityChange(e) {
     const cityId = e.target.value ? parseInt(e.target.value) : null;
+    setSelectedCityId(cityId);
+
     const selectedCity = cities.find(c => c.id === cityId);
     onCityChange(selectedCity?.name || '');
   }
@@ -178,7 +232,7 @@ export default function LocationSelector({
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
         <select
-          value={cities.find(c => c.name === city)?.id || ''}
+          value={selectedCityId || ''}
           onChange={handleCityChange}
           disabled={disabled || !selectedStateId || loadingCities}
           className={selectClass}
