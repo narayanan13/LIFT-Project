@@ -1,5 +1,5 @@
 import React from 'react'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 function Sidebar({ links }){
   return (
@@ -84,9 +84,6 @@ export default function DashboardLayout({ links, role, children }){
 ))}
               </ul>
             </nav>
-            <div className="p-4 border-t mt-auto">
-              <Link to="/" className="block py-2 px-3 rounded text-md text-deep-red hover:underline hover:bg-white ">Back to site</Link>
-            </div>
           </aside>
           <main className="flex-1 p-6 bg-gray-100">
             {children ? children : <Outlet />}
