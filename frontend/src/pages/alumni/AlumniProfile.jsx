@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../../api';
 import { FaUser, FaEdit, FaPlus, FaBriefcase, FaTrash, FaLinkedin, FaGraduationCap } from 'react-icons/fa';
 import ToastNotification from '../../components/ToastNotification';
+import LocationSelector from '../../components/LocationSelector';
 
 export default function AlumniProfile() {
   const [profile, setProfile] = useState(null);
@@ -22,7 +23,12 @@ export default function AlumniProfile() {
     dateOfBirth: '',
     contactNumber: '',
     shareContactNumber: true,
-    currentResidence: '',
+    addressLine: '',
+    area: '',
+    city: '',
+    state: '',
+    country: '',
+    shareAddress: true,
     profession: '',
     linkedinProfile: ''
   });
@@ -78,7 +84,12 @@ export default function AlumniProfile() {
       dateOfBirth: '',
       contactNumber: '',
       shareContactNumber: true,
-      currentResidence: '',
+      addressLine: '',
+      area: '',
+      city: '',
+      state: '',
+      country: '',
+      shareAddress: true,
       profession: '',
       linkedinProfile: ''
     });
@@ -94,7 +105,12 @@ export default function AlumniProfile() {
       dateOfBirth: profile.dateOfBirth ? profile.dateOfBirth.split('T')[0] : '',
       contactNumber: profile.contactNumber || '',
       shareContactNumber: profile.shareContactNumber !== undefined ? profile.shareContactNumber : true,
-      currentResidence: profile.currentResidence || '',
+      addressLine: profile.addressLine || '',
+      area: profile.area || '',
+      city: profile.city || '',
+      state: profile.state || '',
+      country: profile.country || '',
+      shareAddress: profile.shareAddress !== undefined ? profile.shareAddress : true,
       profession: profile.profession || '',
       linkedinProfile: profile.linkedinProfile || ''
     });
@@ -286,19 +302,28 @@ export default function AlumniProfile() {
 
                  <div>
                    <div className="text-sm text-gray-500">Privacy Settings</div>
-                   <div className="font-medium">
+                   <div className="font-medium space-y-1">
                      {profile.shareContactNumber ? (
-                       <span className="text-green-600">Contact number is visible to other alumni</span>
+                       <div className="text-green-600">Contact number is visible to other alumni</div>
                      ) : (
-                       <span className="text-gray-600">Contact number is hidden from other alumni</span>
+                       <div className="text-gray-600">Contact number is hidden from other alumni</div>
+                     )}
+                     {profile.shareAddress ? (
+                       <div className="text-green-600">Address is visible to other alumni</div>
+                     ) : (
+                       <div className="text-gray-600">Address is hidden from other alumni</div>
                      )}
                    </div>
                  </div>
 
-                {profile.currentResidence && (
+                {(profile.addressLine || profile.area || profile.city || profile.state || profile.country) && (
                   <div>
-                    <div className="text-sm text-gray-500">Current Residence</div>
-                    <div className="font-medium">{profile.currentResidence}</div>
+                    <div className="text-sm text-gray-500">Address</div>
+                    <div className="font-medium">
+                      {[profile.addressLine, profile.area, profile.city, profile.state, profile.country]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </div>
                   </div>
                 )}
 
@@ -489,15 +514,47 @@ export default function AlumniProfile() {
                        </label>
                      </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Current Residence</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Address Line</label>
                       <input
                         type="text"
-                        placeholder="e.g., Chennai, Tamil Nadu"
-                        value={profileForm.currentResidence}
-                        onChange={e => setProfileForm({ ...profileForm, currentResidence: e.target.value })}
+                        placeholder="e.g., 123 Main Street, Apt 4B"
+                        value={profileForm.addressLine}
+                        onChange={e => setProfileForm({ ...profileForm, addressLine: e.target.value })}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
                         disabled={savingProfile}
                       />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Area</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., T Nagar"
+                        value={profileForm.area}
+                        onChange={e => setProfileForm({ ...profileForm, area: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
+                        disabled={savingProfile}
+                      />
+                    </div>
+                    <LocationSelector
+                      country={profileForm.country}
+                      state={profileForm.state}
+                      city={profileForm.city}
+                      onCountryChange={(value) => setProfileForm({ ...profileForm, country: value, state: '', city: '' })}
+                      onStateChange={(value) => setProfileForm({ ...profileForm, state: value, city: '' })}
+                      onCityChange={(value) => setProfileForm({ ...profileForm, city: value })}
+                      disabled={savingProfile}
+                    />
+                    <div>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={profileForm.shareAddress}
+                          onChange={e => setProfileForm({ ...profileForm, shareAddress: e.target.checked })}
+                          disabled={savingProfile}
+                          className="w-4 h-4 text-deep-red focus:ring-deep-red rounded border-gray-300"
+                        />
+                        <span className="text-sm text-gray-700">Share address with other alumni</span>
+                      </label>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Profession</label>

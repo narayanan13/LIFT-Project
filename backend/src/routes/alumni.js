@@ -39,7 +39,7 @@ router.get('/profile', async (req, res) => {
 
 // Create profile (first-time setup)
 router.post('/profile', async (req, res) => {
-  const { degree, institution, graduationYear, dateOfBirth, contactNumber, shareContactNumber, currentResidence, profession, linkedinProfile } = req.body;
+  const { degree, institution, graduationYear, dateOfBirth, contactNumber, shareContactNumber, addressLine, area, city, state, country, shareAddress, profession, linkedinProfile } = req.body;
 
   // Validate required fields
   if (!degree || !degree.trim()) {
@@ -89,7 +89,12 @@ router.post('/profile', async (req, res) => {
         dateOfBirth: dob,
         contactNumber: contactNumber?.trim() || null,
         shareContactNumber: shareContactNumber !== undefined ? Boolean(shareContactNumber) : true,
-        currentResidence: currentResidence?.trim() || null,
+        addressLine: addressLine?.trim() || null,
+        area: area?.trim() || null,
+        city: city?.trim() || null,
+        state: state?.trim() || null,
+        country: country?.trim() || null,
+        shareAddress: shareAddress !== undefined ? Boolean(shareAddress) : true,
         profession: profession?.trim() || null,
         linkedinProfile: linkedinProfile?.trim() || null
       },
@@ -107,7 +112,7 @@ router.post('/profile', async (req, res) => {
 
 // Update own profile
 router.put('/profile', async (req, res) => {
-  const { degree, institution, graduationYear, dateOfBirth, contactNumber, shareContactNumber, currentResidence, profession, linkedinProfile } = req.body;
+  const { degree, institution, graduationYear, dateOfBirth, contactNumber, shareContactNumber, addressLine, area, city, state, country, shareAddress, profession, linkedinProfile } = req.body;
 
   try {
     const existing = await prisma.alumniProfile.findUnique({ where: { userId: req.user.id } });
@@ -142,7 +147,12 @@ router.put('/profile', async (req, res) => {
     }
     if (contactNumber !== undefined) updateData.contactNumber = contactNumber?.trim() || null;
     if (shareContactNumber !== undefined) updateData.shareContactNumber = Boolean(shareContactNumber);
-    if (currentResidence !== undefined) updateData.currentResidence = currentResidence?.trim() || null;
+    if (addressLine !== undefined) updateData.addressLine = addressLine?.trim() || null;
+    if (area !== undefined) updateData.area = area?.trim() || null;
+    if (city !== undefined) updateData.city = city?.trim() || null;
+    if (state !== undefined) updateData.state = state?.trim() || null;
+    if (country !== undefined) updateData.country = country?.trim() || null;
+    if (shareAddress !== undefined) updateData.shareAddress = Boolean(shareAddress);
     if (profession !== undefined) updateData.profession = profession?.trim() || null;
     if (linkedinProfile !== undefined) {
       if (linkedinProfile && linkedinProfile.trim()) {
@@ -187,15 +197,23 @@ router.get('/profiles', async (req, res) => {
       orderBy: { user: { name: 'asc' } }
     });
 
-    // Hide contact number for profiles that don't share it
+    // Hide contact number and address for profiles that don't share them
     const sanitizedProfiles = profiles.map(profile => {
+      const sanitized = { ...profile };
+
       if (!profile.shareContactNumber && profile.userId !== req.user.id) {
-        return {
-          ...profile,
-          contactNumber: null
-        };
+        sanitized.contactNumber = null;
       }
-      return profile;
+
+      if (!profile.shareAddress && profile.userId !== req.user.id) {
+        sanitized.addressLine = null;
+        sanitized.area = null;
+        sanitized.city = null;
+        sanitized.state = null;
+        sanitized.country = null;
+      }
+
+      return sanitized;
     });
 
     res.json(sanitizedProfiles);
@@ -223,7 +241,12 @@ router.get('/profiles/:userId', async (req, res) => {
     // Hide contact number if user doesn't share it and it's not their own profile
     const sanitizedProfile = {
       ...profile,
-      contactNumber: (!profile.shareContactNumber && profile.userId !== req.user.id) ? null : profile.contactNumber
+      contactNumber: (!profile.shareContactNumber && profile.userId !== req.user.id) ? null : profile.contactNumber,
+      addressLine: (!profile.shareAddress && profile.userId !== req.user.id) ? null : profile.addressLine,
+      area: (!profile.shareAddress && profile.userId !== req.user.id) ? null : profile.area,
+      city: (!profile.shareAddress && profile.userId !== req.user.id) ? null : profile.city,
+      state: (!profile.shareAddress && profile.userId !== req.user.id) ? null : profile.state,
+      country: (!profile.shareAddress && profile.userId !== req.user.id) ? null : profile.country
     };
 
     res.json(sanitizedProfile);

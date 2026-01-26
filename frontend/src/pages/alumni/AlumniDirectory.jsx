@@ -42,11 +42,15 @@ export default function AlumniDirectory() {
 
   const filteredProfiles = profiles.filter(profile => {
     const search = searchTerm.toLowerCase();
+    const addressParts = [profile.addressLine, profile.area, profile.city, profile.state, profile.country]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
     return (
       profile.user?.name?.toLowerCase().includes(search) ||
       profile.profession?.toLowerCase().includes(search) ||
       profile.institution?.toLowerCase().includes(search) ||
-      profile.currentResidence?.toLowerCase().includes(search) ||
+      addressParts.includes(search) ||
       profile.jobHistory?.[0]?.companyName?.toLowerCase().includes(search)
     );
   });
@@ -123,9 +127,11 @@ export default function AlumniDirectory() {
                       <FaGraduationCap className="mr-2 text-gray-400 flex-shrink-0" />
                       <span className="truncate">{profile.degree}, {profile.graduationYear}</span>
                     </div>
-                    {profile.currentResidence && (
+                    {(profile.addressLine || profile.area || profile.city || profile.state || profile.country) && profile.shareAddress && (
                       <div className="text-gray-500 truncate">
-                        {profile.currentResidence}
+                        {[profile.addressLine, profile.area, profile.city, profile.state, profile.country]
+                          .filter(Boolean)
+                          .join(', ')}
                       </div>
                     )}
                   </div>
@@ -189,10 +195,14 @@ export default function AlumniDirectory() {
                     </div>
                   </div>
 
-                  {selectedProfile.currentResidence && (
+                  {(selectedProfile.addressLine || selectedProfile.area || selectedProfile.city || selectedProfile.state || selectedProfile.country) && selectedProfile.shareAddress && (
                     <div>
                       <div className="text-sm text-gray-500">Location</div>
-                      <div className="font-medium">{selectedProfile.currentResidence}</div>
+                      <div className="font-medium">
+                        {[selectedProfile.addressLine, selectedProfile.area, selectedProfile.city, selectedProfile.state, selectedProfile.country]
+                          .filter(Boolean)
+                          .join(', ')}
+                      </div>
                     </div>
                   )}
 

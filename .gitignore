@@ -43,4 +43,4 @@ lerna-debug.log*
 *.sqlite
 
 # Prisma
-backend/prisma/migrations/*/migration.sql
+# Note: migration.sql files should be committed to version control

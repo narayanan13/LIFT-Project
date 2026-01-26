@@ -10,6 +10,7 @@ const prisma = new PrismaClient();
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 import alumniRoutes from './routes/alumni.js';
+import locationRoutes from './routes/locations.js';
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.use(morgan('dev'));
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/alumni', alumniRoutes);
+app.use('/api/locations', locationRoutes);
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 

@@ -203,7 +203,12 @@ model AlumniProfile {
    // Optional fields
    contactNumber    String?  @map("contact_number")
    shareContactNumber Boolean @default(true) @map("share_contact_number")
-   currentResidence String?  @map("current_residence")
+   addressLine      String?  @map("address_line")
+   area             String?  @map("area")
+   city             String?  @map("city")
+   state            String?  @map("state")
+   country          String?  @map("country")
+   shareAddress     Boolean @default(true) @map("share_address")
    profession       String?
    linkedinProfile  String?  @map("linkedin_profile")
 
@@ -268,4 +273,47 @@ model Settings {
   updatedBy   String?  @map("updated_by")
 
   @@map("settings")
+}
+
+model Country {
+  id          Int      @id
+  name        String
+  iso2        String   @unique
+  iso3        String   @unique
+  numericCode String?  @map("numeric_code")
+  phoneCode   String?  @map("phone_code")
+  capital     String?
+  currency    String?
+  region      String?
+  subregion   String?
+
+  states      State[]
+
+  @@map("country")
+}
+
+model State {
+  id        Int      @id
+  name      String
+  iso2      String?
+  countryId Int      @map("country_id")
+  country   Country  @relation(fields: [countryId], references: [id], onDelete: Cascade)
+
+  cities    City[]
+
+  @@unique([countryId, name])
+  @@map("state")
+}
+
+model City {
+  id        Int      @id
+  name      String
+  stateId   Int      @map("state_id")
+  state     State    @relation(fields: [stateId], references: [id], onDelete: Cascade)
+  countryId Int      @map("country_id")
+  latitude  String?
+  longitude String?
+
+  @@unique([stateId, name])
+  @@map("city")
 }
