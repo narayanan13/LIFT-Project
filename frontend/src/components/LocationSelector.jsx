@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../api';
 
+// Normalize string for comparison (remove spaces, lowercase)
+function normalize(str) {
+  if (!str) return '';
+  return str.toLowerCase().replace(/\s+/g, '');
+}
+
 export default function LocationSelector({
   country,
   state,
@@ -40,7 +46,7 @@ export default function LocationSelector({
         // If country name is provided, find matching country
         if (countryRef.current) {
           const matchedCountry = res.data.find(
-            c => c.name.toLowerCase() === countryRef.current.toLowerCase()
+            c => normalize(c.name) === normalize(countryRef.current)
           );
           if (matchedCountry) {
             setSelectedCountryId(matchedCountry.id);
@@ -73,7 +79,7 @@ export default function LocationSelector({
         // If state name is provided and we're initializing, find matching state
         if (stateRef.current && !initializedRef.current) {
           const matchedState = res.data.find(
-            s => s.name.toLowerCase() === stateRef.current.toLowerCase()
+            s => normalize(s.name) === normalize(stateRef.current)
           );
           if (matchedState) {
             setSelectedStateId(matchedState.id);
@@ -105,7 +111,7 @@ export default function LocationSelector({
         // If city name is provided and we're initializing, find matching city
         if (cityRef.current && !initializedRef.current) {
           const matchedCity = res.data.find(
-            c => c.name.toLowerCase() === cityRef.current.toLowerCase()
+            c => normalize(c.name) === normalize(cityRef.current)
           );
           if (matchedCity) {
             setSelectedCityId(matchedCity.id);
@@ -140,7 +146,7 @@ export default function LocationSelector({
         // Re-initialize with new values
         initializedRef.current = false;
         const matchedCountry = countries.find(
-          c => c.name.toLowerCase() === country.toLowerCase()
+          c => normalize(c.name) === normalize(country)
         );
         if (matchedCountry && matchedCountry.id !== selectedCountryId) {
           setSelectedCountryId(matchedCountry.id);
@@ -148,6 +154,42 @@ export default function LocationSelector({
       }
     }
   }, [country, state, city, countries]);
+
+  // When country is selected, try to find and select the state
+  useEffect(() => {
+    if (selectedCountryId && !initializedRef.current && states.length > 0 && stateRef.current) {
+      const matchedState = states.find(
+        s => normalize(s.name) === normalize(stateRef.current)
+      );
+      if (matchedState && matchedState.id !== selectedStateId) {
+        setSelectedStateId(matchedState.id);
+      }
+    }
+  }, [selectedCountryId, states, selectedStateId, state]);
+
+  // When state is selected, try to find and select the city
+  useEffect(() => {
+    if (selectedStateId && !initializedRef.current && cities.length > 0 && cityRef.current) {
+      const matchedCity = cities.find(
+        c => normalize(c.name) === normalize(cityRef.current)
+      );
+      if (matchedCity && matchedCity.id !== selectedCityId) {
+        setSelectedCityId(matchedCity.id);
+      }
+    }
+  }, [selectedStateId, cities, selectedCityId, city]);
+
+  // When modal opens and country is set, select the country
+  useEffect(() => {
+    if (country && !selectedCountryId && countries.length > 0) {
+      const matchedCountry = countries.find(
+        c => normalize(c.name) === normalize(country)
+      );
+      if (matchedCountry) {
+        setSelectedCountryId(matchedCountry.id);
+      }
+    }
+  }, [country, countries, selectedCountryId]);
 
   function handleCountryChange(e) {
     const countryId = e.target.value ? parseInt(e.target.value) : null;
