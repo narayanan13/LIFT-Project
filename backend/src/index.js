@@ -2,7 +2,6 @@ import express from 'express';
 import morgan from 'morgan';
 import helmet from 'helmet';
 import cors from 'cors';
-import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
 
 import 'dotenv/config';
@@ -45,31 +44,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Rate limiting for auth endpoints - prevent brute force attacks
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Limit each IP to 5 requests per windowMs
-  message: 'Too many authentication attempts, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false,
-  skipSuccessfulRequests: false // Count failed AND successful requests
-});
-
-// General rate limiting for all API endpoints
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: 'Too many requests, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false
-});
-
 app.use(express.json());
 app.use(morgan('dev'));
-
-// Apply rate limiting
-app.use('/api/auth/login', authLimiter);
-app.use('/api', apiLimiter);
 
 // Routes
 app.use('/api/auth', authRoutes);
