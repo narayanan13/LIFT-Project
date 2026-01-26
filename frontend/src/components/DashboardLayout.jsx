@@ -28,11 +28,13 @@ export default function DashboardLayout({ links, role, children }){
   const user = JSON.parse(localStorage.getItem('user'))
 
 
+  const isTreasurer = user?.officePosition === 'TREASURER'
+
   const adminLinks = [
     { to: '/admin/overview', label: 'Overview' },
     { to: '/admin/users', label: 'Users' },
     { to: '/admin/directory', label: 'Alumni Directory' },
-    { to: '/admin/contributions', label: 'Contributions' },
+    ...(isTreasurer ? [{ to: '/admin/contributions', label: 'Contributions' }] : []),
     { to: '/admin/events', label: 'Events/Groups' },
     { to: '/admin/expenses', label: 'Expenses' },
     { to: '/admin/meetings', label: 'Meetings' },

@@ -1,7 +1,7 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { hashPassword } from '../utils/auth.js';
-import { authRequired, requireRole } from '../middleware/authMiddleware.js';
+import { authRequired, requireRole, requirePosition } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -19,23 +19,30 @@ const createUserSchema = Joi.object({
     .messages({
       'string.pattern.base': 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)'
     }),
-  role: Joi.string().valid('ADMIN','ALUMNI').required()
+  role: Joi.string().valid('ADMIN','ALUMNI').required(),
+  officePosition: Joi.string().valid('PRESIDENT', 'VICE_PRESIDENT', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', '').optional().allow(null)
 });
 
 const updateUserSchema = Joi.object({
   name: Joi.string().optional(),
   email: Joi.string().email().optional(),
   role: Joi.string().valid('ADMIN','ALUMNI').optional(),
+  officePosition: Joi.string().valid('PRESIDENT', 'VICE_PRESIDENT', 'SECRETARY', 'JOINT_SECRETARY', 'TREASURER', '').optional().allow(null),
   active: Joi.boolean().optional()
 }).min(1); // At least one field must be provided
 
 router.post('/users', authRequired, requireRole('ADMIN'), async (req, res) => {
   const { error, value } = createUserSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.details[0].message });
-  const { name, email, password, role } = value;
+  const { name, email, password, role, officePosition } = value;
   const passwordHash = hashPassword(password);
   try {
-    const user = await prisma.user.create({ data: { name, email, passwordHash, role } });
+    const data = { name, email, passwordHash, role };
+    // Only set officePosition for ADMIN users
+    if (role === 'ADMIN' && officePosition) {
+      data.officePosition = officePosition;
+    }
+    const user = await prisma.user.create({ data });
     res.json(user);
   } catch (e) {
     res.status(500).json({ error: 'Failed to create user', detail: e.message });
@@ -47,9 +54,16 @@ router.put('/users/:id', authRequired, requireRole('ADMIN'), async (req, res) =>
   if (error) return res.status(400).json({ error: error.details[0].message });
 
   const { id } = req.params;
-  const { name, email, role, active } = value;
+  const { name, email, role, active, officePosition } = value;
   try {
-    const user = await prisma.user.update({ where: { id }, data: { name, email, role, active } });
+    const data = { name, email, role, active };
+    // Handle officePosition - set to null if role is not ADMIN or if empty string
+    if (role === 'ALUMNI') {
+      data.officePosition = null;
+    } else if (officePosition !== undefined) {
+      data.officePosition = officePosition || null;
+    }
+    const user = await prisma.user.update({ where: { id }, data });
     res.json(user);
   } catch (e) {
     res.status(500).json({ error: 'Failed to update user' });
@@ -75,7 +89,7 @@ const createContributionSchema = Joi.object({
   })
 });
 
-router.post('/contributions', authRequired, requireRole('ADMIN'), async (req, res) => {
+router.post('/contributions', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
   const { error, value } = createContributionSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.details[0].message });
 
@@ -124,7 +138,7 @@ router.post('/contributions', authRequired, requireRole('ADMIN'), async (req, re
   }
 });
 
-router.get('/contributions', authRequired, requireRole('ADMIN'), async (req, res) => {
+router.get('/contributions', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
   const { status, type, bucket } = req.query;
   const where = {};
   if (status) where.status = status;
@@ -139,7 +153,7 @@ router.get('/contributions', authRequired, requireRole('ADMIN'), async (req, res
   res.json(list);
 });
 
-router.put('/contributions/:id', authRequired, requireRole('ADMIN'), async (req, res) => {
+router.put('/contributions/:id', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
   const { id } = req.params;
   const { amount, date, notes, status, type, bucket } = req.body;
 
@@ -195,7 +209,7 @@ router.put('/contributions/:id', authRequired, requireRole('ADMIN'), async (req,
   }
 });
 
-router.put('/contributions/:id/approve', authRequired, requireRole('ADMIN'), async (req, res) => {
+router.put('/contributions/:id/approve', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
   const { id } = req.params;
   try {
     const contribution = await prisma.contribution.update({
@@ -225,7 +239,7 @@ router.put('/contributions/:id/approve', authRequired, requireRole('ADMIN'), asy
   }
 });
 
-router.put('/contributions/:id/reject', authRequired, requireRole('ADMIN'), async (req, res) => {
+router.put('/contributions/:id/reject', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
   const { id } = req.params;
   try {
     const contribution = await prisma.contribution.update({
@@ -255,7 +269,7 @@ router.put('/contributions/:id/reject', authRequired, requireRole('ADMIN'), asyn
   }
 });
 
-router.get('/contributions/pending/count', authRequired, requireRole('ADMIN'), async (req, res) => {
+router.get('/contributions/pending/count', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
   const count = await prisma.contribution.count({ where: { status: 'PENDING' } });
   res.json({ count });
 });
@@ -493,7 +507,7 @@ router.put('/expenses/:id', authRequired, requireRole('ADMIN'), async (req, res)
   }
 });
 
-router.put('/expenses/:id/approve', authRequired, requireRole('ADMIN'), async (req, res) => {
+router.put('/expenses/:id/approve', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
   const { id } = req.params;
   try {
     const expense = await prisma.expense.update({
@@ -526,7 +540,7 @@ router.put('/expenses/:id/approve', authRequired, requireRole('ADMIN'), async (r
   }
 });
 
-router.put('/expenses/:id/reject', authRequired, requireRole('ADMIN'), async (req, res) => {
+router.put('/expenses/:id/reject', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
   const { id } = req.params;
   try {
     const expense = await prisma.expense.update({
@@ -956,7 +970,7 @@ router.get('/expenses/:id/audit-logs', authRequired, requireRole('ADMIN'), async
   }
 });
 
-router.get('/contributions/:id/audit-logs', authRequired, requireRole('ADMIN'), async (req, res) => {
+router.get('/contributions/:id/audit-logs', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
   const { id } = req.params;
   try {
     const auditLogs = await prisma.auditLog.findMany({

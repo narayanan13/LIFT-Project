@@ -21,7 +21,7 @@ export async function authRequired(req, res, next) {
     if (!user || !user.active) {
       return res.status(401).json({ error: 'User not found or inactive' });
     }
-    req.user = { id: user.id, role: user.role, email: user.email, name: user.name };
+    req.user = { id: user.id, role: user.role, email: user.email, name: user.name, officePosition: user.officePosition };
     next();
   } catch (err) {
     // Log error without exposing sensitive details
@@ -34,6 +34,16 @@ export function requireRole(role) {
   return (req, res, next) => {
     if (!req.user) return res.status(401).json({ error: 'Missing user' });
     if (req.user.role !== role) return res.status(403).json({ error: 'Forbidden' });
+    next();
+  };
+}
+
+export function requirePosition(...positions) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Missing user' });
+    if (!req.user.officePosition || !positions.includes(req.user.officePosition)) {
+      return res.status(403).json({ error: 'This action requires treasurer privileges' });
+    }
     next();
   };
 }

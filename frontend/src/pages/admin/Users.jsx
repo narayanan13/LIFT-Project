@@ -4,10 +4,19 @@ import { FaEdit, FaBan, FaPlus } from 'react-icons/fa'
 
 export default function AdminUsers(){
   const [users, setUsers] = useState([])
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'ALUMNI' })
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'ALUMNI', officePosition: '' })
   const [showModal, setShowModal] = useState(false)
   const [editUser, setEditUser] = useState(null)
-  const [editForm, setEditForm] = useState({ name: '', email: '', role: '' })
+  const [editForm, setEditForm] = useState({ name: '', email: '', role: '', officePosition: '' })
+
+  const officePositions = [
+    { value: '', label: 'None' },
+    { value: 'PRESIDENT', label: 'President' },
+    { value: 'VICE_PRESIDENT', label: 'Vice President' },
+    { value: 'SECRETARY', label: 'Secretary' },
+    { value: 'JOINT_SECRETARY', label: 'Joint Secretary' },
+    { value: 'TREASURER', label: 'Treasurer' },
+  ]
 
   async function fetch(){
     const res = await api.get('/admin/users')
@@ -23,7 +32,7 @@ export default function AdminUsers(){
 
   function openEditModal(u){
     setEditUser(u)
-    setEditForm({ name: u.name, email: u.email, role: u.role })
+    setEditForm({ name: u.name, email: u.email, role: u.role, officePosition: u.officePosition || '' })
   }
 
   async function updateUser(e){
@@ -47,7 +56,7 @@ export default function AdminUsers(){
     }
     try {
       await api.post('/admin/users', form)
-      setForm({ name: '', email: '', password: '', role: 'ALUMNI' })
+      setForm({ name: '', email: '', password: '', role: 'ALUMNI', officePosition: '' })
       setShowModal(false)
       fetch()
     } catch (err) {
@@ -97,12 +106,23 @@ export default function AdminUsers(){
                 />
                 <select
                   value={form.role}
-                  onChange={(e)=>setForm({...form, role: e.target.value})}
+                  onChange={(e)=>setForm({...form, role: e.target.value, officePosition: e.target.value === 'ADMIN' ? form.officePosition : ''})}
                   className="w-full p-2 border rounded"
                 >
                   <option value="ALUMNI">Alumni</option>
                   <option value="ADMIN">Admin</option>
                 </select>
+                {form.role === 'ADMIN' && (
+                  <select
+                    value={form.officePosition}
+                    onChange={(e)=>setForm({...form, officePosition: e.target.value})}
+                    className="w-full p-2 border rounded"
+                  >
+                    {officePositions.map(pos => (
+                      <option key={pos.value} value={pos.value}>{pos.label}</option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div className="flex justify-end space-x-2 mt-4">
                 <button type="button" onClick={()=>setShowModal(false)} className="px-4 py-2 bg-gray-300 rounded">Cancel</button>
@@ -138,12 +158,23 @@ export default function AdminUsers(){
                 />
                 <select
                   value={editForm.role}
-                  onChange={(e)=>setEditForm({...editForm, role: e.target.value})}
+                  onChange={(e)=>setEditForm({...editForm, role: e.target.value, officePosition: e.target.value === 'ADMIN' ? editForm.officePosition : ''})}
                   className="w-full p-2 border rounded"
                 >
                   <option value="ALUMNI">Alumni</option>
                   <option value="ADMIN">Admin</option>
                 </select>
+                {editForm.role === 'ADMIN' && (
+                  <select
+                    value={editForm.officePosition}
+                    onChange={(e)=>setEditForm({...editForm, officePosition: e.target.value})}
+                    className="w-full p-2 border rounded"
+                  >
+                    {officePositions.map(pos => (
+                      <option key={pos.value} value={pos.value}>{pos.label}</option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div className="flex justify-end space-x-2 mt-4">
                 <button type="button" onClick={()=>setEditUser(null)} className="px-4 py-2 bg-gray-300 rounded">Cancel</button>
@@ -162,6 +193,7 @@ export default function AdminUsers(){
               <th className="px-4 py-2 text-left text-sm font-semibold text-gray-600">Name</th>
               <th className="px-4 py-2 text-left text-sm font-semibold text-gray-600">Email</th>
               <th className="px-4 py-2 text-left text-sm font-semibold text-gray-600">Role</th>
+              <th className="px-4 py-2 text-left text-sm font-semibold text-gray-600">Position</th>
               <th className="px-4 py-2 text-left text-sm font-semibold text-gray-600">Status</th>
               <th className="px-4 py-2 text-left text-sm font-semibold text-gray-600">Actions</th>
             </tr>
@@ -172,6 +204,7 @@ export default function AdminUsers(){
                 <td className="px-4 py-2">{u.name}</td>
                 <td className="px-4 py-2">{u.email}</td>
                 <td className="px-4 py-2">{u.role}</td>
+                <td className="px-4 py-2">{u.officePosition ? officePositions.find(p => p.value === u.officePosition)?.label : '-'}</td>
                 <td className="px-4 py-2">{u.active ? 'Active' : 'Inactive'}</td>
                 <td className="px-4 py-2 space-x-2">
                   <button onClick={()=>openEditModal(u)} className="text-blue-600 hover:text-blue-800"><FaEdit /></button>

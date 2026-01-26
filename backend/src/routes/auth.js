@@ -24,8 +24,8 @@ router.post('/login', async (req, res) => {
   const ok = verifyPassword(password, user.passwordHash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
 
-  const token = signJwt({ id: user.id, role: user.role, email: user.email, name: user.name });
-  res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role }, token });
+  const token = signJwt({ id: user.id, role: user.role, email: user.email, name: user.name, officePosition: user.officePosition });
+  res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, officePosition: user.officePosition }, token });
 });
 
 const changePasswordSchema = Joi.object({
