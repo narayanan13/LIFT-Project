@@ -1,6 +1,23 @@
-import React from "react";
+import React, { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 const LandingPage = () => {
+  const navigate = useNavigate();
+
+  // Redirect to dashboard if already logged in
+  useEffect(() => {
+    const user = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
+    if (user && token) {
+      const userData = JSON.parse(user);
+      if (userData.role === 'ADMIN') {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/alumni', { replace: true });
+      }
+    }
+  }, [navigate]);
+
   return (
     <div className="bg-very-light-peach min-h-screen flex flex-col">
       <div className="flex-grow">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import api from '../api'
 import { useNavigate, Link } from 'react-router-dom'
 import { FaUser, FaLock, FaSignInAlt } from 'react-icons/fa'
@@ -9,6 +9,20 @@ export default function Login() {
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+
+  // Redirect to dashboard if already logged in
+  useEffect(() => {
+    const user = localStorage.getItem('user')
+    const token = localStorage.getItem('token')
+    if (user && token) {
+      const userData = JSON.parse(user)
+      if (userData.role === 'ADMIN') {
+        navigate('/admin', { replace: true })
+      } else {
+        navigate('/alumni', { replace: true })
+      }
+    }
+  }, [navigate])
 
   async function submit(e) {
     e.preventDefault()
