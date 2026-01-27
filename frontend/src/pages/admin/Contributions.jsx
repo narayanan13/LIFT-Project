@@ -160,7 +160,11 @@ function TreasurerContributionsView() {
       return
     }
     try {
-      await api.post('/admin/contributions', formData)
+      // Exclude bucket field for BASIC contributions (server handles split)
+      const dataToSend = formData.type === 'BASIC'
+        ? { ...formData, bucket: undefined }
+        : formData
+      await api.post('/admin/contributions', dataToSend)
       setShowModal(false)
       setFormData({ userId: '', amount: '', date: '', notes: '', type: '', bucket: '' })
       fetchContributions()
