@@ -7,19 +7,25 @@ export default function AdminOverview(){
   const [contribs, setContribs] = useState([])
   const [expenses, setExpenses] = useState([])
   const [users, setUsers] = useState([])
+  const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedBucket, setSelectedBucket] = useState('ALL') // ALL, LIFT, ALUMNI_ASSOCIATION
+  const [statusFilter, setStatusFilter] = useState('APPROVED') // all, PENDING, APPROVED, REJECTED
+  const [typeFilter, setTypeFilter] = useState('all') // all, BASIC, ADDITIONAL
+  const [eventFilter, setEventFilter] = useState('all') // all, none, or event ID
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
 
   useEffect(()=>{fetchAll()},[])
-  useEffect(()=>{fetchData()}, [startDate, endDate])
+  useEffect(()=>{fetchData()}, [startDate, endDate, statusFilter, typeFilter, eventFilter])
 
   async function fetchAll(){
     try{
       setLoading(true)
       const r = await api.get('/admin/report/budget')
       setReport(r.data)
+      const e = await api.get('/admin/events')
+      setEvents(e.data)
       await fetchData()
       const u = await api.get('/admin/users')
       setUsers(u.data)
@@ -31,16 +37,38 @@ export default function AdminOverview(){
 
   async function fetchData(){
     try{
-      const params = new URLSearchParams()
-      if (startDate) params.append('startDate', startDate)
-      if (endDate) params.append('endDate', endDate)
+      // Build contribution params
+      const contribParams = new URLSearchParams()
+      if (startDate) contribParams.append('startDate', startDate)
+      if (endDate) contribParams.append('endDate', endDate)
+      if (statusFilter !== 'all') contribParams.append('status', statusFilter)
+      if (typeFilter !== 'all') contribParams.append('type', typeFilter)
+
+      // Build expense params
+      const expenseParams = new URLSearchParams()
+      if (startDate) expenseParams.append('startDate', startDate)
+      if (endDate) expenseParams.append('endDate', endDate)
+      if (statusFilter !== 'all') expenseParams.append('status', statusFilter)
+      if (selectedBucket !== 'ALL') expenseParams.append('bucket', selectedBucket)
+      if (eventFilter === 'none') {
+        // Filter client-side for no event
+      } else if (eventFilter !== 'all') {
+        expenseParams.append('eventId', eventFilter)
+      }
 
       const [c, e] = await Promise.all([
-        api.get(`/admin/contributions?${params.toString()}`),
-        api.get(`/admin/expenses?${params.toString()}`)
+        api.get(`/admin/contributions?${contribParams.toString()}`),
+        api.get(`/admin/expenses?${expenseParams.toString()}`)
       ])
+
+      // Filter expenses by event client-side if needed
+      let filteredExpenses = e.data
+      if (eventFilter === 'none') {
+        filteredExpenses = filteredExpenses.filter(exp => !exp.eventId)
+      }
+
       setContribs(c.data)
-      setExpenses(e.data)
+      setExpenses(filteredExpenses)
     }catch(err){ console.error(err) }
   }
 
@@ -121,53 +149,110 @@ export default function AdminOverview(){
           <p className="text-gray-600">Quick stats and recent activity</p>
         </div>
 
-        {/* Bucket Filter Tabs */}
-        <div className="mb-6 flex flex-wrap gap-4 items-center">
-          <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
-            {bucketTabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setSelectedBucket(tab.id)}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  selectedBucket === tab.id
-                    ? 'bg-deep-red text-white'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+        {/* Filters Section */}
+        <div className="mb-6 space-y-4">
+          {/* Bucket Filter Tabs */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Bucket</label>
+            <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+              {bucketTabs.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setSelectedBucket(tab.id)}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    selectedBucket === tab.id
+                      ? 'bg-deep-red text-white'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Other Filters */}
+          <div className="flex flex-wrap gap-4">
+            {/* Status Filter */}
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">From Date</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="p-2 border rounded"
+              >
+                <option value="all">All Statuses</option>
+                <option value="APPROVED">Approved</option>
+                <option value="PENDING">Pending</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+            </div>
+
+            {/* Contribution Type Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Contribution Type</label>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="p-2 border rounded"
+              >
+                <option value="all">All Types</option>
+                <option value="BASIC">Basic</option>
+                <option value="ADDITIONAL">Additional</option>
+              </select>
+            </div>
+
+            {/* Event Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Event/Group</label>
+              <select
+                value={eventFilter}
+                onChange={(e) => setEventFilter(e.target.value)}
+                className="p-2 border rounded w-full md:w-64"
+              >
+                <option value="all">All Events</option>
+                <option value="none">No Event/Group</option>
+                {events.map(event => (
+                  <option key={event.id} value={event.id}>{event.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Date Range Filters */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">From Date</label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="p-2 border rounded text-sm"
+                className="p-2 border rounded"
               />
             </div>
+
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">To Date</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">To Date</label>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="p-2 border rounded text-sm"
+                className="p-2 border rounded"
               />
             </div>
-            {(startDate || endDate) && (
+
+            {/* Clear All Filters Button */}
+            {(startDate || endDate || statusFilter !== 'APPROVED' || typeFilter !== 'all' || eventFilter !== 'all') && (
               <div className="flex items-end">
                 <button
                   onClick={() => {
                     setStartDate('')
                     setEndDate('')
+                    setStatusFilter('APPROVED')
+                    setTypeFilter('all')
+                    setEventFilter('all')
                   }}
-                  className="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
                 >
-                  Clear Dates
+                  Clear All Filters
                 </button>
               </div>
             )}
