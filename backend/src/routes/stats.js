@@ -139,18 +139,30 @@ router.get('/overview', async (req, res) => {
     }
 
     // Calculate bucket-wise contributions (from all data)
-    const liftContribs = await prisma.contribution.aggregate({
-      where: { ...bucketContribWhere, bucket: 'LIFT' },
+    // For LIFT bucket: sum liftAmount (for BASIC contributions) + amount where bucket='LIFT' and type='ADDITIONAL'
+    // For AA bucket: sum aaAmount (for BASIC contributions) + amount where bucket='ALUMNI_ASSOCIATION' and type='ADDITIONAL'
+
+    // LIFT bucket: BASIC contributions have liftAmount, ADDITIONAL have amount
+    const liftBasicContribs = await prisma.contribution.aggregate({
+      where: { ...bucketContribWhere, bucket: 'LIFT', type: 'BASIC' },
       _sum: { liftAmount: true }
     });
-    const aaContribs = await prisma.contribution.aggregate({
-      where: { ...bucketContribWhere, bucket: 'ALUMNI_ASSOCIATION' },
+    const liftAdditionalContribs = await prisma.contribution.aggregate({
+      where: { ...bucketContribWhere, bucket: 'LIFT', type: 'ADDITIONAL' },
+      _sum: { amount: true }
+    });
+    const liftTotal = (liftBasicContribs._sum.liftAmount || 0) + (liftAdditionalContribs._sum.amount || 0);
+
+    // ALUMNI_ASSOCIATION bucket: BASIC contributions have aaAmount, ADDITIONAL have amount
+    const aaBasicContribs = await prisma.contribution.aggregate({
+      where: { ...bucketContribWhere, bucket: 'ALUMNI_ASSOCIATION', type: 'BASIC' },
       _sum: { aaAmount: true }
     });
-
-    // For BASIC contributions, use liftAmount and aaAmount
-    const liftTotal = liftContribs._sum.liftAmount || 0;
-    const aaTotal = aaContribs._sum.aaAmount || 0;
+    const aaAdditionalContribs = await prisma.contribution.aggregate({
+      where: { ...bucketContribWhere, bucket: 'ALUMNI_ASSOCIATION', type: 'ADDITIONAL' },
+      _sum: { amount: true }
+    });
+    const aaTotal = (aaBasicContribs._sum.aaAmount || 0) + (aaAdditionalContribs._sum.amount || 0);
 
     // Calculate bucket-wise expenses (from all data)
     const liftExpenses = await prisma.expense.aggregate({
