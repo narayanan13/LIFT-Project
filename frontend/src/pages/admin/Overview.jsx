@@ -3,9 +3,8 @@ import api from '../../api'
 import { FaRupeeSign, FaReceipt, FaWallet, FaUsers } from 'react-icons/fa'
 
 export default function AdminOverview(){
-  const [report, setReport] = useState(null)
-  const [contribs, setContribs] = useState([])
-  const [expenses, setExpenses] = useState([])
+  const [stats, setStats] = useState(null)
+  const [bucketStats, setBucketStats] = useState(null)
   const [users, setUsers] = useState([])
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
@@ -17,16 +16,14 @@ export default function AdminOverview(){
   const [endDate, setEndDate] = useState('')
 
   useEffect(()=>{fetchAll()},[])
-  useEffect(()=>{fetchData()}, [startDate, endDate, statusFilter, typeFilter, eventFilter])
+  useEffect(()=>{fetchStats()}, [startDate, endDate, statusFilter, typeFilter, eventFilter, selectedBucket])
 
   async function fetchAll(){
     try{
       setLoading(true)
-      const r = await api.get('/admin/report/budget')
-      setReport(r.data)
       const e = await api.get('/admin/events')
       setEvents(e.data)
-      await fetchData()
+      await fetchStats()
       const u = await api.get('/admin/users')
       setUsers(u.data)
     }catch(err){ console.error(err) }
@@ -35,98 +32,55 @@ export default function AdminOverview(){
     }
   }
 
-  async function fetchData(){
+  async function fetchStats(){
     try{
-      // Build contribution params
-      const contribParams = new URLSearchParams()
-      if (startDate) contribParams.append('startDate', startDate)
-      if (endDate) contribParams.append('endDate', endDate)
-      if (statusFilter !== 'all') contribParams.append('status', statusFilter)
-      if (typeFilter !== 'all') contribParams.append('type', typeFilter)
-
-      // Build expense params
-      const expenseParams = new URLSearchParams()
-      if (startDate) expenseParams.append('startDate', startDate)
-      if (endDate) expenseParams.append('endDate', endDate)
-      if (statusFilter !== 'all') expenseParams.append('status', statusFilter)
-      if (selectedBucket !== 'ALL') expenseParams.append('bucket', selectedBucket)
+      const params = new URLSearchParams()
+      if (startDate) params.append('startDate', startDate)
+      if (endDate) params.append('endDate', endDate)
+      if (statusFilter !== 'all') params.append('status', statusFilter)
+      if (typeFilter !== 'all') params.append('type', typeFilter)
+      if (selectedBucket !== 'ALL') params.append('bucket', selectedBucket)
       if (eventFilter === 'none') {
-        // Filter client-side for no event
+        params.append('eventId', 'none')
       } else if (eventFilter !== 'all') {
-        expenseParams.append('eventId', eventFilter)
+        params.append('eventId', eventFilter)
       }
 
-      const [c, e] = await Promise.all([
-        api.get(`/admin/contributions?${contribParams.toString()}`),
-        api.get(`/admin/expenses?${expenseParams.toString()}`)
-      ])
+      const response = await api.get(`/stats/overview?${params.toString()}`)
 
-      // Filter expenses by event client-side if needed
-      let filteredExpenses = e.data
-      if (eventFilter === 'none') {
-        filteredExpenses = filteredExpenses.filter(exp => !exp.eventId)
+      // Calculate stats based on selected bucket
+      if (selectedBucket === 'ALL') {
+        setStats({
+          totalContributions: response.data.totalContributions,
+          totalExpenses: response.data.totalExpenses,
+          remaining: response.data.remaining
+        })
+      } else {
+        // Use bucket-specific stats
+        const bucketData = response.data.buckets[selectedBucket]
+        setStats({
+          totalContributions: bucketData.contributions,
+          totalExpenses: bucketData.expenses,
+          remaining: bucketData.balance
+        })
       }
 
-      setContribs(c.data)
-      setExpenses(filteredExpenses)
-    }catch(err){ console.error(err) }
-  }
-
-  // Filter data based on selected bucket
-  const filteredContribs = selectedBucket === 'ALL'
-    ? contribs
-    : contribs.filter(c => c.bucket === selectedBucket)
-
-  const filteredExpenses = selectedBucket === 'ALL'
-    ? expenses
-    : expenses.filter(e => e.bucket === selectedBucket)
-
-  // Calculate stats based on bucket selection and date filters
-  const getStats = () => {
-    // Calculate from filtered data
-    const approvedContribs = filteredContribs.filter(c => c.status === 'APPROVED')
-    const approvedExpenses = filteredExpenses.filter(e => e.status === 'APPROVED')
-
-    const totalContrib = approvedContribs.reduce((sum, c) => sum + (c.amount || 0), 0)
-    const totalExpenses = approvedExpenses.reduce((sum, e) => sum + (e.amount || 0), 0)
-    const remaining = totalContrib - totalExpenses
-
-    return { totalContrib, totalExpenses, remaining }
-  }
-
-  const stats = getStats()
-  const activeContributors = users.filter(u => u.active).length
-
-  // Calculate bucket-wise stats for summary cards
-  const getBucketStats = () => {
-    const approvedContribs = contribs.filter(c => c.status === 'APPROVED')
-    const approvedExpenses = expenses.filter(e => e.status === 'APPROVED')
-
-    const liftContribs = approvedContribs.filter(c => c.bucket === 'LIFT')
-    const aaContribs = approvedContribs.filter(c => c.bucket === 'ALUMNI_ASSOCIATION')
-
-    // For BASIC contributions, use liftAmount and aaAmount
-    const liftTotal = liftContribs.reduce((sum, c) => sum + (c.liftAmount || c.amount || 0), 0)
-    const aaTotal = aaContribs.reduce((sum, c) => sum + (c.aaAmount || c.amount || 0), 0)
-
-    const liftExpenses = approvedExpenses.filter(e => e.bucket === 'LIFT').reduce((sum, e) => sum + (e.amount || 0), 0)
-    const aaExpenses = approvedExpenses.filter(e => e.bucket === 'ALUMNI_ASSOCIATION').reduce((sum, e) => sum + (e.amount || 0), 0)
-
-    return {
-      LIFT: {
-        contributions: liftTotal,
-        expenses: liftExpenses,
-        balance: liftTotal - liftExpenses
-      },
-      ALUMNI_ASSOCIATION: {
-        contributions: aaTotal,
-        expenses: aaExpenses,
-        balance: aaTotal - aaExpenses
-      }
+      setBucketStats(response.data.buckets)
+    }catch(err){
+      console.error(err)
+      setStats({
+        totalContributions: 0,
+        totalExpenses: 0,
+        remaining: 0
+      })
+      setBucketStats({
+        LIFT: { contributions: 0, expenses: 0, balance: 0 },
+        ALUMNI_ASSOCIATION: { contributions: 0, expenses: 0, balance: 0 }
+      })
     }
   }
 
-  const bucketStats = getBucketStats()
+  const activeContributors = users.filter(u => u.active).length
 
   const bucketTabs = [
     { id: 'ALL', label: 'All' },
@@ -262,9 +216,9 @@ export default function AdminOverview(){
               {(() => {
                 const fmt = (v) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v || 0)
                 const items = [
-                  { title: 'Total Contributions', value: stats.totalContrib, delta: selectedBucket !== 'ALL' ? `${selectedBucket === 'LIFT' ? 'LIFT' : 'AA'} bucket` : '', deltaColor: 'text-gray-500', iconBg: 'bg-green-50', icon: <FaRupeeSign className="text-green-600" /> },
-                  { title: 'Total Expenses', value: stats.totalExpenses, delta: selectedBucket !== 'ALL' ? `${selectedBucket === 'LIFT' ? 'LIFT' : 'AA'} bucket` : '', deltaColor: 'text-gray-500', iconBg: 'bg-red-50', icon: <FaReceipt className="text-red-600" /> },
-                  { title: 'Remaining Balance', value: stats.remaining, delta: selectedBucket !== 'ALL' ? `${selectedBucket === 'LIFT' ? 'LIFT' : 'AA'} bucket` : '', deltaColor: 'text-gray-500', iconBg: 'bg-blue-50', icon: <FaWallet className="text-blue-600" /> },
+                  { title: 'Total Contributions', value: stats?.totalContrib || 0, delta: selectedBucket !== 'ALL' ? `${selectedBucket === 'LIFT' ? 'LIFT' : 'AA'} bucket` : '', deltaColor: 'text-gray-500', iconBg: 'bg-green-50', icon: <FaRupeeSign className="text-green-600" /> },
+                  { title: 'Total Expenses', value: stats?.totalExpenses || 0, delta: selectedBucket !== 'ALL' ? `${selectedBucket === 'LIFT' ? 'LIFT' : 'AA'} bucket` : '', deltaColor: 'text-gray-500', iconBg: 'bg-red-50', icon: <FaReceipt className="text-red-600" /> },
+                  { title: 'Remaining Balance', value: stats?.remaining || 0, delta: selectedBucket !== 'ALL' ? `${selectedBucket === 'LIFT' ? 'LIFT' : 'AA'} bucket` : '', deltaColor: 'text-gray-500', iconBg: 'bg-blue-50', icon: <FaWallet className="text-blue-600" /> },
                   { title: 'Active Contributors', value: activeContributors, delta: '', deltaColor: 'text-gray-500', iconBg: 'bg-purple-50', icon: <FaUsers className="text-purple-600" /> }
                 ]
                 return items.map((s) => (

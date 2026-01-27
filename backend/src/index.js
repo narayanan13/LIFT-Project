@@ -11,6 +11,7 @@ import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 import alumniRoutes from './routes/alumni.js';
 import locationRoutes from './routes/locations.js';
+import statsRoutes from './routes/stats.js';
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/alumni', alumniRoutes);
 app.use('/api/locations', locationRoutes);
+app.use('/api/stats', statsRoutes);
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 

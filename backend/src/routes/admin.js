@@ -960,6 +960,103 @@ router.get('/report/budget', authRequired, requireRole('ADMIN'), async (req, res
   });
 });
 
+// Overview stats endpoint - returns aggregated stats based on filters
+router.get('/report/overview-stats', authRequired, requireRole('ADMIN'), async (req, res) => {
+  const { status, type, bucket, eventId, startDate, endDate } = req.query;
+
+  // Build contribution where clause
+  const contribWhere = { status: status || 'APPROVED' };
+  if (status && status !== 'all') contribWhere.status = status;
+  if (type && type !== 'all') contribWhere.type = type;
+  if (bucket && bucket !== 'ALL') contribWhere.bucket = bucket;
+  if (startDate || endDate) {
+    contribWhere.date = {};
+    if (startDate) contribWhere.date.gte = new Date(startDate);
+    if (endDate) contribWhere.date.lte = new Date(endDate);
+  }
+
+  // Build expense where clause
+  const expenseWhere = {};
+  if (status && status !== 'all') expenseWhere.status = status;
+  if (status && status === 'all') delete expenseWhere.status; // Show all statuses if 'all' is selected
+  else expenseWhere.status = 'APPROVED'; // Default to APPROVED
+  if (bucket && bucket !== 'ALL') expenseWhere.bucket = bucket;
+  if (eventId === 'none' || eventId === 'null') {
+    expenseWhere.eventId = null;
+  } else if (eventId && eventId !== 'all') {
+    expenseWhere.eventId = eventId;
+  }
+  if (startDate || endDate) {
+    expenseWhere.date = {};
+    if (startDate) expenseWhere.date.gte = new Date(startDate);
+    if (endDate) expenseWhere.date.lte = new Date(endDate);
+  }
+
+  try {
+    // Overall totals
+    const totalContrib = await prisma.contribution.aggregate({
+      where: contribWhere,
+      _sum: { amount: true, liftAmount: true, aaAmount: true },
+      _count: true
+    });
+
+    const totalExpenses = await prisma.expense.aggregate({
+      where: expenseWhere,
+      _sum: { amount: true },
+      _count: true
+    });
+
+    // Bucket-wise contributions
+    const liftContribs = await prisma.contribution.aggregate({
+      where: { ...contribWhere, bucket: 'LIFT' },
+      _sum: { liftAmount: true }
+    });
+    const aaContribs = await prisma.contribution.aggregate({
+      where: { ...contribWhere, bucket: 'ALUMNI_ASSOCIATION' },
+      _sum: { aaAmount: true }
+    });
+
+    // For BASIC contributions, use liftAmount and aaAmount
+    const liftTotal = liftContribs._sum.liftAmount || 0;
+    const aaTotal = aaContribs._sum.aaAmount || 0;
+
+    // Bucket-wise expenses
+    const liftExpenses = await prisma.expense.aggregate({
+      where: { ...expenseWhere, bucket: 'LIFT' },
+      _sum: { amount: true }
+    });
+    const aaExpenses = await prisma.expense.aggregate({
+      where: { ...expenseWhere, bucket: 'ALUMNI_ASSOCIATION' },
+      _sum: { amount: true }
+    });
+
+    const totalContribAmount = totalContrib._sum.amount || 0;
+    const totalExpensesAmount = totalExpenses._sum.amount || 0;
+
+    res.json({
+      totalContributions: totalContribAmount,
+      totalExpenses: totalExpensesAmount,
+      remaining: totalContribAmount - totalExpensesAmount,
+      contributionCount: totalContrib._count,
+      expenseCount: totalExpenses._count,
+      buckets: {
+        LIFT: {
+          contributions: liftTotal,
+          expenses: liftExpenses._sum.amount || 0,
+          balance: liftTotal - (liftExpenses._sum.amount || 0)
+        },
+        ALUMNI_ASSOCIATION: {
+          contributions: aaTotal,
+          expenses: aaExpenses._sum.amount || 0,
+          balance: aaTotal - (aaExpenses._sum.amount || 0)
+        }
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch overview stats', detail: err.message });
+  }
+});
+
 // Audit log endpoints
 router.get('/expenses/:id/audit-logs', authRequired, requireRole('ADMIN'), async (req, res) => {
   const { id } = req.params;
