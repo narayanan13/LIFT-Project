@@ -5,7 +5,7 @@ import AdminDashboard from './pages/AdminDashboard'
 import AlumniDashboard from './pages/AlumniDashboard'
 import LandingPage from './pages/LandingPage'
 import DashboardLayout from './components/DashboardLayout'
-import { adminLinks } from './pages/admin'
+// adminLinks moved to DashboardLayout for dynamic treasurer check
 import AdminOverview from './pages/admin/Overview'
 import AdminUsers from './pages/admin/Users'
 import AdminContributions from './pages/admin/Contributions'
@@ -41,7 +41,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
-        <Route path="/admin" element={<Protected role={'ADMIN'}><DashboardLayout links={adminLinks} /></Protected>} >
+        <Route path="/admin" element={<Protected role={'ADMIN'}><DashboardLayout role={'ADMIN'} /></Protected>} >
           <Route index element={<AdminDashboard />} />
           <Route path="overview" element={<AdminDashboard />} />
           <Route path="users" element={<AdminUsers />} />
