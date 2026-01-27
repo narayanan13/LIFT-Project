@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import api from '../../api'
 import { FaPlus, FaEdit, FaCheck, FaTimes } from 'react-icons/fa'
 import AuditLogTable from '../../components/AuditLogTable'
+import AlumniContributions from '../alumni/AlumniContributions'
 
 function StatusBadge({ status }) {
   const styles = {
@@ -45,6 +46,19 @@ function BucketBadge({ bucket }) {
 }
 
 export default function AdminContributions() {
+  const user = JSON.parse(localStorage.getItem('user'))
+  const isTreasurer = user?.officePosition === 'TREASURER'
+
+  // If not treasurer, show Alumni-like view
+  if (!isTreasurer) {
+    return <AlumniContributions />
+  }
+
+  // Treasurer view - full admin access
+  return <TreasurerContributionsView />
+}
+
+function TreasurerContributionsView() {
   const [list, setList] = useState([])
   const [users, setUsers] = useState([])
   const [filter, setFilter] = useState('all')
