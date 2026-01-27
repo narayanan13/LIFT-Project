@@ -9,24 +9,39 @@ export default function AdminOverview(){
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedBucket, setSelectedBucket] = useState('ALL') // ALL, LIFT, ALUMNI_ASSOCIATION
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
 
   useEffect(()=>{fetchAll()},[])
+  useEffect(()=>{fetchData()}, [startDate, endDate])
 
   async function fetchAll(){
     try{
       setLoading(true)
       const r = await api.get('/admin/report/budget')
       setReport(r.data)
-      const c = await api.get('/admin/contributions')
-      setContribs(c.data)
-      const e = await api.get('/admin/expenses')
-      setExpenses(e.data)
+      await fetchData()
       const u = await api.get('/admin/users')
       setUsers(u.data)
     }catch(err){ console.error(err) }
     finally {
       setLoading(false)
     }
+  }
+
+  async function fetchData(){
+    try{
+      const params = new URLSearchParams()
+      if (startDate) params.append('startDate', startDate)
+      if (endDate) params.append('endDate', endDate)
+
+      const [c, e] = await Promise.all([
+        api.get(`/admin/contributions?${params.toString()}`),
+        api.get(`/admin/expenses?${params.toString()}`)
+      ])
+      setContribs(c.data)
+      setExpenses(e.data)
+    }catch(err){ console.error(err) }
   }
 
   // Filter data based on selected bucket
@@ -38,32 +53,52 @@ export default function AdminOverview(){
     ? expenses
     : expenses.filter(e => e.bucket === selectedBucket)
 
-  // Calculate stats based on bucket selection
+  // Calculate stats based on bucket selection and date filters
   const getStats = () => {
-    if (!report) return { totalContrib: 0, totalExpenses: 0, remaining: 0 }
+    // Calculate from filtered data
+    const approvedContribs = filteredContribs.filter(c => c.status === 'APPROVED')
+    const approvedExpenses = filteredExpenses.filter(e => e.status === 'APPROVED')
 
-    if (selectedBucket === 'ALL') {
-      return {
-        totalContrib: report.totalContrib,
-        totalExpenses: report.totalExpenses,
-        remaining: report.remaining
-      }
-    }
+    const totalContrib = approvedContribs.reduce((sum, c) => sum + (c.amount || 0), 0)
+    const totalExpenses = approvedExpenses.reduce((sum, e) => sum + (e.amount || 0), 0)
+    const remaining = totalContrib - totalExpenses
 
-    const bucketData = report.buckets?.[selectedBucket]
-    if (bucketData) {
-      return {
-        totalContrib: bucketData.contributions,
-        totalExpenses: bucketData.expenses,
-        remaining: bucketData.balance
-      }
-    }
-
-    return { totalContrib: 0, totalExpenses: 0, remaining: 0 }
+    return { totalContrib, totalExpenses, remaining }
   }
 
   const stats = getStats()
   const activeContributors = users.filter(u => u.active).length
+
+  // Calculate bucket-wise stats for summary cards
+  const getBucketStats = () => {
+    const approvedContribs = contribs.filter(c => c.status === 'APPROVED')
+    const approvedExpenses = expenses.filter(e => e.status === 'APPROVED')
+
+    const liftContribs = approvedContribs.filter(c => c.bucket === 'LIFT')
+    const aaContribs = approvedContribs.filter(c => c.bucket === 'ALUMNI_ASSOCIATION')
+
+    // For BASIC contributions, use liftAmount and aaAmount
+    const liftTotal = liftContribs.reduce((sum, c) => sum + (c.liftAmount || c.amount || 0), 0)
+    const aaTotal = aaContribs.reduce((sum, c) => sum + (c.aaAmount || c.amount || 0), 0)
+
+    const liftExpenses = approvedExpenses.filter(e => e.bucket === 'LIFT').reduce((sum, e) => sum + (e.amount || 0), 0)
+    const aaExpenses = approvedExpenses.filter(e => e.bucket === 'ALUMNI_ASSOCIATION').reduce((sum, e) => sum + (e.amount || 0), 0)
+
+    return {
+      LIFT: {
+        contributions: liftTotal,
+        expenses: liftExpenses,
+        balance: liftTotal - liftExpenses
+      },
+      ALUMNI_ASSOCIATION: {
+        contributions: aaTotal,
+        expenses: aaExpenses,
+        balance: aaTotal - aaExpenses
+      }
+    }
+  }
+
+  const bucketStats = getBucketStats()
 
   const recentActivities = [
     ...filteredContribs.slice(0, 5).map(c => ({ ...c, type: 'contribution', icon: FaCreditCard, color: 'text-green-600' })),
@@ -87,7 +122,7 @@ export default function AdminOverview(){
         </div>
 
         {/* Bucket Filter Tabs */}
-        <div className="mb-6">
+        <div className="mb-6 flex flex-wrap gap-4 items-center">
           <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
             {bucketTabs.map(tab => (
               <button
@@ -102,6 +137,40 @@ export default function AdminOverview(){
                 {tab.label}
               </button>
             ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">From Date</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="p-2 border rounded text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">To Date</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="p-2 border rounded text-sm"
+              />
+            </div>
+            {(startDate || endDate) && (
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    setStartDate('')
+                    setEndDate('')
+                  }}
+                  className="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+                >
+                  Clear Dates
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -134,9 +203,9 @@ export default function AdminOverview(){
             </div>
 
             {/* Bucket Summary Cards (shown when ALL is selected) */}
-            {selectedBucket === 'ALL' && report?.buckets && (
+            {selectedBucket === 'ALL' && bucketStats && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                {Object.entries(report.buckets).map(([bucketName, data]) => {
+                {Object.entries(bucketStats).map(([bucketName, data]) => {
                   const fmt = (v) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v || 0)
                   const displayName = bucketName === 'LIFT' ? 'LIFT' : 'Alumni Association'
                   const bgColor = bucketName === 'LIFT' ? 'bg-gradient-to-r from-blue-50 to-blue-100' : 'bg-gradient-to-r from-purple-50 to-purple-100'
