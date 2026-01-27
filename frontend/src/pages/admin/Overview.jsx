@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import api from '../../api'
-import { FaRupeeSign, FaReceipt, FaWallet, FaUsers, FaCreditCard } from 'react-icons/fa'
+import { FaRupeeSign, FaReceipt, FaWallet, FaUsers } from 'react-icons/fa'
 
 export default function AdminOverview(){
   const [report, setReport] = useState(null)
@@ -128,13 +128,6 @@ export default function AdminOverview(){
 
   const bucketStats = getBucketStats()
 
-  const recentActivities = [
-    ...filteredContribs.slice(0, 5).map(c => ({ ...c, type: 'contribution', icon: FaCreditCard, color: 'text-green-600' })),
-    ...filteredExpenses.slice(0, 5).map(e => ({ ...e, type: 'expense', icon: FaReceipt, color: 'text-red-600' }))
-  ]
-    .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .slice(0, 10)
-
   const bucketTabs = [
     { id: 'ALL', label: 'All' },
     { id: 'LIFT', label: 'LIFT' },
@@ -146,7 +139,7 @@ export default function AdminOverview(){
       <div className="container mx-auto px-6 py-8">
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gradient mb-2">Admin Overview</h1>
-          <p className="text-gray-600">Quick stats and recent activity</p>
+          <p className="text-gray-600">Quick stats and financial summary</p>
         </div>
 
         {/* Filters Section */}
@@ -318,47 +311,6 @@ export default function AdminOverview(){
                 })}
               </div>
             )}
-
-            <div className="card">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Recent Activity</h3>
-                {selectedBucket !== 'ALL' && (
-                  <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                    {selectedBucket === 'LIFT' ? 'LIFT' : 'Alumni Association'}
-                  </span>
-                )}
-              </div>
-              <div className="space-y-3">
-                {recentActivities.map(activity => (
-                  <div key={`${activity.type}-${activity.id}`} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center">
-                      <activity.icon className={`mr-3 ${activity.color}`} />
-                      <div>
-                        <div className="font-medium text-gray-800">
-                          {activity.type === 'contribution' ? `${activity.user?.name} contributed` : `${activity.category} expense`}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {new Date(activity.date).toLocaleDateString()}
-                          {activity.bucket && (
-                            <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
-                              activity.bucket === 'LIFT' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-                            }`}>
-                              {activity.bucket === 'LIFT' ? 'LIFT' : 'AA'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className={`font-semibold ${activity.type === 'contribution' ? 'text-green-600' : 'text-red-600'}`}>
-                      ₹{activity.amount}
-                    </div>
-                  </div>
-                ))}
-                {recentActivities.length === 0 && (
-                  <p className="text-gray-500 text-center py-4">No recent activity</p>
-                )}
-              </div>
-            </div>
           </>
         )}
       </div>
