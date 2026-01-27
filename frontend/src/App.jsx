@@ -42,8 +42,8 @@ export default function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
         <Route path="/admin" element={<Protected role={'ADMIN'}><DashboardLayout role={'ADMIN'} /></Protected>} >
-          <Route index element={<AdminDashboard />} />
-          <Route path="overview" element={<AdminDashboard />} />
+          <Route index element={<AdminOverview />} />
+          <Route path="overview" element={<AdminOverview />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="contributions" element={<AdminContributions />} />
           <Route path="events" element={<AdminEvents />} />
