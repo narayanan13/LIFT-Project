@@ -15,14 +15,15 @@ export default function AdminOverview(){
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
 
+  // Initial data fetch
   useEffect(()=>{fetchAll()},[])
 
-  // Fetch stats when filters change (not bucket - that's handled separately)
+  // Fetch stats when filters change
   useEffect(()=>{
     if (!loading) fetchStats()
-  }, [startDate, endDate, statusFilter, typeFilter, eventFilter])
+  }, [loading, startDate, endDate, statusFilter, typeFilter, eventFilter])
 
-  // Recalculate displayed stats when bucket changes (use existing data)
+  // Update displayed stats when bucket changes
   useEffect(()=>{
     if (bucketStats && !loading) {
       if (selectedBucket === 'ALL') {
@@ -40,14 +41,13 @@ export default function AdminOverview(){
         })
       }
     }
-  }, [selectedBucket, bucketStats])
+  }, [selectedBucket, bucketStats, loading])
 
   async function fetchAll(){
     try{
       setLoading(true)
       const e = await api.get('/admin/events')
       setEvents(e.data)
-      await fetchStats()
       const u = await api.get('/admin/users')
       setUsers(u.data)
     }catch(err){ console.error(err) }
@@ -71,18 +71,21 @@ export default function AdminOverview(){
 
       const response = await api.get(`/stats/overview?${params.toString()}`)
 
-      // Store bucket stats (always shows all buckets)
-      setBucketStats(response.data.buckets)
+      // Store the API response
+      const apiData = response.data
 
-      // Calculate displayed stats based on selected bucket
+      // Store bucket stats
+      setBucketStats(apiData.buckets)
+
+      // Set stats based on selected bucket
       if (selectedBucket === 'ALL') {
         setStats({
-          totalContributions: response.data.totalContributions,
-          totalExpenses: response.data.totalExpenses,
-          remaining: response.data.remaining
+          totalContributions: apiData.totalContributions,
+          totalExpenses: apiData.totalExpenses,
+          remaining: apiData.remaining
         })
       } else {
-        const bucketData = response.data.buckets[selectedBucket]
+        const bucketData = apiData.buckets[selectedBucket]
         setStats({
           totalContributions: bucketData.contributions,
           totalExpenses: bucketData.expenses,
@@ -90,7 +93,7 @@ export default function AdminOverview(){
         })
       }
     }catch(err){
-      console.error(err)
+      console.error('Error fetching stats:', err)
       setStats({
         totalContributions: 0,
         totalExpenses: 0,
