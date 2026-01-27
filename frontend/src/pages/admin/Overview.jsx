@@ -242,7 +242,7 @@ export default function AdminOverview(){
               {(() => {
                 const fmt = (v) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v || 0)
                 const items = [
-                  { title: 'Total Contributions', value: stats?.totalContrib || 0, delta: selectedBucket !== 'ALL' ? `${selectedBucket === 'LIFT' ? 'LIFT' : 'AA'} bucket` : '', deltaColor: 'text-gray-500', iconBg: 'bg-green-50', icon: <FaRupeeSign className="text-green-600" /> },
+                  { title: 'Total Contributions', value: stats?.totalContributions || 0, delta: selectedBucket !== 'ALL' ? `${selectedBucket === 'LIFT' ? 'LIFT' : 'AA'} bucket` : '', deltaColor: 'text-gray-500', iconBg: 'bg-green-50', icon: <FaRupeeSign className="text-green-600" /> },
                   { title: 'Total Expenses', value: stats?.totalExpenses || 0, delta: selectedBucket !== 'ALL' ? `${selectedBucket === 'LIFT' ? 'LIFT' : 'AA'} bucket` : '', deltaColor: 'text-gray-500', iconBg: 'bg-red-50', icon: <FaReceipt className="text-red-600" /> },
                   { title: 'Remaining Balance', value: stats?.remaining || 0, delta: selectedBucket !== 'ALL' ? `${selectedBucket === 'LIFT' ? 'LIFT' : 'AA'} bucket` : '', deltaColor: 'text-gray-500', iconBg: 'bg-blue-50', icon: <FaWallet className="text-blue-600" /> },
                   { title: 'Active Contributors', value: activeContributors, delta: '', deltaColor: 'text-gray-500', iconBg: 'bg-purple-50', icon: <FaUsers className="text-purple-600" /> }
