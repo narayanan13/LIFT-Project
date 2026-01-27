@@ -42,6 +42,8 @@ export default function AdminExpenses(){
   const [filterEvent, setFilterEvent] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterBucket, setFilterBucket] = useState('all')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [formData, setFormData] = useState({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', bucket: '', eventId: '' })
   const [editFormData, setEditFormData] = useState({ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', bucket: '', eventId: '' })
   const [bulkExpenses, setBulkExpenses] = useState([{ amount: '', vendor: '', purpose: '', description: '', date: '', category: '', bucket: '' }])
@@ -54,8 +56,15 @@ export default function AdminExpenses(){
     fetchEvents()
   }, [])
 
+  useEffect(() => {
+    fetchExpenses()
+  }, [startDate, endDate])
+
   const fetchExpenses = () => {
-    api.get('/admin/expenses').then(r => setList(r.data)).catch(() => console.error('Failed to fetch expenses'))
+    const params = new URLSearchParams()
+    if (startDate) params.append('startDate', startDate)
+    if (endDate) params.append('endDate', endDate)
+    api.get(`/admin/expenses?${params.toString()}`).then(r => setList(r.data)).catch(() => console.error('Failed to fetch expenses'))
   }
 
   const fetchEvents = () => {
@@ -284,6 +293,40 @@ export default function AdminExpenses(){
             ))}
           </select>
         </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2">From Date</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="p-2 border rounded"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2">To Date</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="p-2 border rounded"
+          />
+        </div>
+
+        {(startDate || endDate) && (
+          <div className="flex items-end">
+            <button
+              onClick={() => {
+                setStartDate('')
+                setEndDate('')
+              }}
+              className="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+            >
+              Clear Dates
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="space-y-2">

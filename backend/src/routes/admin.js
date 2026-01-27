@@ -139,11 +139,16 @@ router.post('/contributions', authRequired, requireRole('ADMIN'), requirePositio
 });
 
 router.get('/contributions', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
-  const { status, type, bucket } = req.query;
+  const { status, type, bucket, startDate, endDate } = req.query;
   const where = {};
   if (status) where.status = status;
   if (type) where.type = type;
   if (bucket) where.bucket = bucket;
+  if (startDate || endDate) {
+    where.date = {};
+    if (startDate) where.date.gte = new Date(startDate);
+    if (endDate) where.date.lte = new Date(endDate);
+  }
 
   const list = await prisma.contribution.findMany({
     where,
@@ -428,10 +433,15 @@ router.post('/expenses/bulk', authRequired, requireRole('ADMIN'), async (req, re
 });
 
 router.get('/expenses', authRequired, requireRole('ADMIN'), async (req, res) => {
-  const { status, bucket } = req.query;
+  const { status, bucket, startDate, endDate } = req.query;
   const where = {};
   if (status) where.status = status;
   if (bucket) where.bucket = bucket;
+  if (startDate || endDate) {
+    where.date = {};
+    if (startDate) where.date.gte = new Date(startDate);
+    if (endDate) where.date.lte = new Date(endDate);
+  }
 
   try {
     const list = await prisma.expense.findMany({
