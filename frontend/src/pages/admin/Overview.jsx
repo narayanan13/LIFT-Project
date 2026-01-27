@@ -16,7 +16,31 @@ export default function AdminOverview(){
   const [endDate, setEndDate] = useState('')
 
   useEffect(()=>{fetchAll()},[])
-  useEffect(()=>{fetchStats()}, [startDate, endDate, statusFilter, typeFilter, eventFilter, selectedBucket])
+
+  // Fetch stats when filters change (not bucket - that's handled separately)
+  useEffect(()=>{
+    if (!loading) fetchStats()
+  }, [startDate, endDate, statusFilter, typeFilter, eventFilter])
+
+  // Recalculate displayed stats when bucket changes (use existing data)
+  useEffect(()=>{
+    if (bucketStats && !loading) {
+      if (selectedBucket === 'ALL') {
+        setStats({
+          totalContributions: bucketStats.LIFT.contributions + bucketStats.ALUMNI_ASSOCIATION.contributions,
+          totalExpenses: bucketStats.LIFT.expenses + bucketStats.ALUMNI_ASSOCIATION.expenses,
+          remaining: (bucketStats.LIFT.contributions + bucketStats.ALUMNI_ASSOCIATION.contributions) - (bucketStats.LIFT.expenses + bucketStats.ALUMNI_ASSOCIATION.expenses)
+        })
+      } else {
+        const bucketData = bucketStats[selectedBucket]
+        setStats({
+          totalContributions: bucketData.contributions,
+          totalExpenses: bucketData.expenses,
+          remaining: bucketData.balance
+        })
+      }
+    }
+  }, [selectedBucket, bucketStats])
 
   async function fetchAll(){
     try{
@@ -39,7 +63,6 @@ export default function AdminOverview(){
       if (endDate) params.append('endDate', endDate)
       if (statusFilter !== 'all') params.append('status', statusFilter)
       if (typeFilter !== 'all') params.append('type', typeFilter)
-      if (selectedBucket !== 'ALL') params.append('bucket', selectedBucket)
       if (eventFilter === 'none') {
         params.append('eventId', 'none')
       } else if (eventFilter !== 'all') {
@@ -48,7 +71,10 @@ export default function AdminOverview(){
 
       const response = await api.get(`/stats/overview?${params.toString()}`)
 
-      // Calculate stats based on selected bucket
+      // Store bucket stats (always shows all buckets)
+      setBucketStats(response.data.buckets)
+
+      // Calculate displayed stats based on selected bucket
       if (selectedBucket === 'ALL') {
         setStats({
           totalContributions: response.data.totalContributions,
@@ -56,7 +82,6 @@ export default function AdminOverview(){
           remaining: response.data.remaining
         })
       } else {
-        // Use bucket-specific stats
         const bucketData = response.data.buckets[selectedBucket]
         setStats({
           totalContributions: bucketData.contributions,
@@ -64,8 +89,6 @@ export default function AdminOverview(){
           remaining: bucketData.balance
         })
       }
-
-      setBucketStats(response.data.buckets)
     }catch(err){
       console.error(err)
       setStats({

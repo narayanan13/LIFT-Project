@@ -85,7 +85,7 @@ router.get('/overview', async (req, res) => {
       if (endDate) expenseWhere.date.lte = new Date(endDate);
     }
 
-    // Calculate overall totals
+    // Calculate overall totals (filtered by bucket if specified)
     const totalContrib = await prisma.contribution.aggregate({
       where: contribWhere,
       _sum: { amount: true, liftAmount: true, aaAmount: true },
@@ -98,13 +98,53 @@ router.get('/overview', async (req, res) => {
       _count: true
     });
 
-    // Calculate bucket-wise contributions
+    // Calculate bucket-wise stats (always from all data, not filtered by bucket)
+    // This ensures the bucket summary cards always show complete data
+    const bucketContribWhere = {};
+    if (isAlumni) {
+      bucketContribWhere.userId = user.id;
+    }
+    if (status && status !== 'all') {
+      bucketContribWhere.status = status;
+    } else if (!status) {
+      bucketContribWhere.status = 'APPROVED';
+    }
+    if (type && type !== 'all') {
+      bucketContribWhere.type = type;
+    }
+    if (startDate || endDate) {
+      bucketContribWhere.date = {};
+      if (startDate) bucketContribWhere.date.gte = new Date(startDate);
+      if (endDate) bucketContribWhere.date.lte = new Date(endDate);
+    }
+
+    const bucketExpenseWhere = {};
+    if (isAlumni) {
+      bucketExpenseWhere.submittedBy = user.id;
+    }
+    if (status && status !== 'all') {
+      bucketExpenseWhere.status = status;
+    } else if (!status) {
+      bucketExpenseWhere.status = 'APPROVED';
+    }
+    if (eventId === 'none' || eventId === 'null') {
+      bucketExpenseWhere.eventId = null;
+    } else if (eventId && eventId !== 'all') {
+      bucketExpenseWhere.eventId = eventId;
+    }
+    if (startDate || endDate) {
+      bucketExpenseWhere.date = {};
+      if (startDate) bucketExpenseWhere.date.gte = new Date(startDate);
+      if (endDate) bucketExpenseWhere.date.lte = new Date(endDate);
+    }
+
+    // Calculate bucket-wise contributions (from all data)
     const liftContribs = await prisma.contribution.aggregate({
-      where: { ...contribWhere, bucket: 'LIFT' },
+      where: { ...bucketContribWhere, bucket: 'LIFT' },
       _sum: { liftAmount: true }
     });
     const aaContribs = await prisma.contribution.aggregate({
-      where: { ...contribWhere, bucket: 'ALUMNI_ASSOCIATION' },
+      where: { ...bucketContribWhere, bucket: 'ALUMNI_ASSOCIATION' },
       _sum: { aaAmount: true }
     });
 
@@ -112,13 +152,13 @@ router.get('/overview', async (req, res) => {
     const liftTotal = liftContribs._sum.liftAmount || 0;
     const aaTotal = aaContribs._sum.aaAmount || 0;
 
-    // Calculate bucket-wise expenses
+    // Calculate bucket-wise expenses (from all data)
     const liftExpenses = await prisma.expense.aggregate({
-      where: { ...expenseWhere, bucket: 'LIFT' },
+      where: { ...bucketExpenseWhere, bucket: 'LIFT' },
       _sum: { amount: true }
     });
     const aaExpenses = await prisma.expense.aggregate({
-      where: { ...expenseWhere, bucket: 'ALUMNI_ASSOCIATION' },
+      where: { ...bucketExpenseWhere, bucket: 'ALUMNI_ASSOCIATION' },
       _sum: { amount: true }
     });
 
