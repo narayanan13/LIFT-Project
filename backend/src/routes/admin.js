@@ -82,51 +82,64 @@ const createContributionSchema = Joi.object({
   date: Joi.date().required(),
   notes: Joi.string().allow('', null).optional(),
   type: Joi.string().valid('BASIC', 'ADDITIONAL').required(),
-  bucket: Joi.string().valid('LIFT', 'ALUMNI_ASSOCIATION').when('type', {
-    is: 'ADDITIONAL',
-    then: Joi.required(),
-    otherwise: Joi.optional()
-  })
+  liftPercentage: Joi.number().min(0).max(100).optional(),
+  aaPercentage: Joi.number().min(0).max(100).optional()
+}).custom((value, helpers) => {
+  // For ADDITIONAL, validate percentages are provided and sum to 100
+  if (value.type === 'ADDITIONAL') {
+    if (value.liftPercentage === undefined || value.aaPercentage === undefined) {
+      return helpers.error('any.required');
+    }
+    if (Math.abs((value.liftPercentage || 0) + (value.aaPercentage || 0) - 100) > 0.01) {
+      return helpers.error('any.invalid');
+    }
+  }
+  // For BASIC, percentages are not required (will use system default)
+  return value;
 });
 
 router.post('/contributions', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
   const { error, value } = createContributionSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.details[0].message });
 
-  const { userId, amount, date, notes, type, bucket } = value;
+  const { userId, amount, date, notes, type, liftPercentage, aaPercentage } = value;
 
   try {
-    let contributionData = {
+    let effectiveLiftPct, effectiveAaPct;
+
+    if (type === 'BASIC') {
+      // For BASIC, fetch system default split from settings
+      const splitSetting = await prisma.settings.findUnique({
+        where: { key: 'basic_contribution_split_lift' }
+      });
+      effectiveLiftPct = splitSetting ? parseFloat(splitSetting.value) : 50;
+      effectiveAaPct = 100 - effectiveLiftPct;
+    } else {
+      // For ADDITIONAL, use provided percentages
+      effectiveLiftPct = liftPercentage;
+      effectiveAaPct = aaPercentage;
+    }
+
+    const liftAmount = (Number(amount) * effectiveLiftPct) / 100;
+    const aaAmount = (Number(amount) * effectiveAaPct) / 100;
+
+    const contributionData = {
       userId,
       amount: Number(amount),
       date: new Date(date),
       notes,
       type,
       status: 'APPROVED',
+      bucket: null,
+      liftAmount,
+      aaAmount,
+      liftPercentage: effectiveLiftPct,
+      aaPercentage: effectiveAaPct,
+      splitPercentage: effectiveLiftPct, // Keep for backward compatibility
       createdBy: req.user.id,
       approvedBy: req.user.id,
       approvedAt: new Date()
     };
-
-    if (type === 'BASIC') {
-      // Get split percentage from settings
-      const splitSetting = await prisma.settings.findUnique({
-        where: { key: 'basic_contribution_split_lift' }
-      });
-      const splitPercentage = splitSetting ? parseFloat(splitSetting.value) : 50;
-      const liftAmount = (amount * splitPercentage) / 100;
-      const aaAmount = amount - liftAmount;
-
-      contributionData.bucket = 'LIFT'; // BASIC contributions are tracked under LIFT but split across both
-      contributionData.liftAmount = liftAmount;
-      contributionData.aaAmount = aaAmount;
-      contributionData.splitPercentage = splitPercentage;
-    } else {
-      // ADDITIONAL contributions go to specified bucket
-      contributionData.bucket = bucket;
-      contributionData.liftAmount = bucket === 'LIFT' ? amount : 0;
-      contributionData.aaAmount = bucket === 'ALUMNI_ASSOCIATION' ? amount : 0;
-    }
 
     const c = await prisma.contribution.create({
       data: contributionData,
@@ -160,16 +173,39 @@ router.get('/contributions', authRequired, requireRole('ADMIN'), requirePosition
 
 router.put('/contributions/:id', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
   const { id } = req.params;
-  const { amount, date, notes, status, type, bucket } = req.body;
+  const { amount, date, notes, status, type, liftPercentage, aaPercentage } = req.body;
 
   try {
-    // Get existing contribution to check type
+    // Get existing contribution
     const existing = await prisma.contribution.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Contribution not found' });
 
     const updateData = {};
     const effectiveType = type !== undefined ? type : existing.type;
     const effectiveAmount = amount !== undefined ? Number(amount) : existing.amount;
+
+    // Determine percentages based on type
+    let effectiveLiftPct, effectiveAaPct;
+
+    if (effectiveType === 'BASIC') {
+      // For BASIC, always use system default (ignore provided percentages)
+      const splitSetting = await prisma.settings.findUnique({
+        where: { key: 'basic_contribution_split_lift' }
+      });
+      effectiveLiftPct = splitSetting ? parseFloat(splitSetting.value) : 50;
+      effectiveAaPct = 100 - effectiveLiftPct;
+    } else {
+      // For ADDITIONAL, use provided percentages or keep existing
+      effectiveLiftPct = liftPercentage !== undefined ? Number(liftPercentage) : (existing.liftPercentage || 50);
+      effectiveAaPct = aaPercentage !== undefined ? Number(aaPercentage) : (existing.aaPercentage || 50);
+
+      // Validate percentages only for ADDITIONAL when provided
+      if ((liftPercentage !== undefined || aaPercentage !== undefined)) {
+        if (Math.abs(effectiveLiftPct + effectiveAaPct - 100) > 0.01) {
+          return res.status(400).json({ error: 'LIFT and AA percentages must sum to 100' });
+        }
+      }
+    }
 
     if (amount !== undefined) {
       if (isNaN(amount) || Number(amount) <= 0) {
@@ -187,20 +223,17 @@ router.put('/contributions/:id', authRequired, requireRole('ADMIN'), requirePosi
       }
     }
     if (type !== undefined) updateData.type = type;
-    if (bucket !== undefined) updateData.bucket = bucket;
 
-    // Recalculate split amounts if amount or type changed
-    if (amount !== undefined || type !== undefined || bucket !== undefined) {
-      if (effectiveType === 'BASIC') {
-        const splitPercentage = existing.splitPercentage || 50;
-        updateData.liftAmount = (effectiveAmount * splitPercentage) / 100;
-        updateData.aaAmount = effectiveAmount - updateData.liftAmount;
-        updateData.bucket = 'LIFT';
-      } else {
-        const effectiveBucket = bucket !== undefined ? bucket : existing.bucket;
-        updateData.liftAmount = effectiveBucket === 'LIFT' ? effectiveAmount : 0;
-        updateData.aaAmount = effectiveBucket === 'ALUMNI_ASSOCIATION' ? effectiveAmount : 0;
-      }
+    // Recalculate split amounts if amount or type changed (or percentages for ADDITIONAL)
+    const needsRecalculation = amount !== undefined || type !== undefined ||
+      (effectiveType === 'ADDITIONAL' && (liftPercentage !== undefined || aaPercentage !== undefined));
+
+    if (needsRecalculation) {
+      updateData.liftAmount = (effectiveAmount * effectiveLiftPct) / 100;
+      updateData.aaAmount = (effectiveAmount * effectiveAaPct) / 100;
+      updateData.liftPercentage = effectiveLiftPct;
+      updateData.aaPercentage = effectiveAaPct;
+      updateData.splitPercentage = effectiveLiftPct; // Keep for backward compatibility
     }
 
     const contribution = await prisma.contribution.update({

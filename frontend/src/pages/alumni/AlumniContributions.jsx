@@ -28,22 +28,6 @@ function TypeBadge({ type }) {
   );
 }
 
-function BucketBadge({ bucket }) {
-  const styles = {
-    LIFT: 'bg-blue-100 text-blue-800',
-    ALUMNI_ASSOCIATION: 'bg-purple-100 text-purple-800'
-  };
-  const labels = {
-    LIFT: 'LIFT',
-    ALUMNI_ASSOCIATION: 'Alumni Assoc.'
-  };
-  return (
-    <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[bucket] || 'bg-gray-100'}`}>
-      {labels[bucket] || bucket}
-    </span>
-  );
-}
-
 export default function AlumniContributions() {
   const [contribs, setContribs] = useState({ total: 0, pendingTotal: 0, liftTotal: 0, aaTotal: 0, contributions: [] });
   const [loading, setLoading] = useState(true);
@@ -51,13 +35,14 @@ export default function AlumniContributions() {
   const [newAmount, setNewAmount] = useState('');
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
   const [newType, setNewType] = useState('');
-  const [newBucket, setNewBucket] = useState('');
+  const [newLiftPercentage, setNewLiftPercentage] = useState(50);
+  const [newAaPercentage, setNewAaPercentage] = useState(50);
   const [newNotes, setNewNotes] = useState('');
   const [adding, setAdding] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('error');
   const [toastVisible, setToastVisible] = useState(false);
-  const [splitPercentage, setSplitPercentage] = useState(50);
+  const [systemDefaultSplit, setSystemDefaultSplit] = useState(50);
 
   useEffect(() => {
     fetchContributions();
@@ -79,7 +64,9 @@ export default function AlumniContributions() {
   async function fetchSplitSetting() {
     try {
       const res = await api.get('/admin/settings/basic_contribution_split_lift');
-      setSplitPercentage(parseFloat(res.data.value));
+      setSystemDefaultSplit(parseFloat(res.data.value));
+      setNewLiftPercentage(parseFloat(res.data.value));
+      setNewAaPercentage(100 - parseFloat(res.data.value));
     } catch (err) {
       // Use default 50% if setting not found
       console.log('Using default split percentage');
@@ -96,24 +83,34 @@ export default function AlumniContributions() {
       showToast('Please select a contribution type', 'error');
       return;
     }
-    if (newType === 'ADDITIONAL' && !newBucket) {
-      showToast('Please select a bucket for ADDITIONAL contributions', 'error');
-      return;
+    // Validate percentages
+    // Only validate percentages for ADDITIONAL (BASIC uses system default)
+    if (newType === 'ADDITIONAL') {
+      if (Math.abs((newLiftPercentage || 0) + (newAaPercentage || 0) - 100) > 0.01) {
+        showToast('LIFT and AA percentages must sum to 100%', 'error');
+        return;
+      }
     }
     setAdding(true);
     try {
-      await api.post('/alumni/contributions', {
+      const dataToSend = {
         amount: Number(newAmount),
         date: newDate,
         type: newType,
-        bucket: newType === 'ADDITIONAL' ? newBucket : undefined,
         notes: newNotes || undefined
-      });
+      };
+      // Only include split percentages for ADDITIONAL contributions
+      if (newType === 'ADDITIONAL') {
+        dataToSend.liftPercentage = newLiftPercentage;
+        dataToSend.aaPercentage = newAaPercentage;
+      }
+      await api.post('/alumni/contributions', dataToSend);
       showToast('Contribution submitted! It will appear once approved by an admin.', 'success');
       setNewAmount('');
       setNewDate(new Date().toISOString().split('T')[0]);
       setNewType('');
-      setNewBucket('');
+      setNewLiftPercentage(systemDefaultSplit);
+      setNewAaPercentage(100 - systemDefaultSplit);
       setNewNotes('');
       await fetchContributions();
     } catch (err) {
@@ -210,32 +207,25 @@ export default function AlumniContributions() {
                   <select
                     value={newType}
                     onChange={e => {
-                      setNewType(e.target.value);
-                      if (e.target.value === 'BASIC') setNewBucket('');
+                      const type = e.target.value;
+                      setNewType(type);
+                      // For BASIC: use system default split, for ADDITIONAL: use 50-50
+                      if (type === 'BASIC') {
+                        setNewLiftPercentage(systemDefaultSplit);
+                        setNewAaPercentage(100 - systemDefaultSplit);
+                      } else {
+                        setNewLiftPercentage(50);
+                        setNewAaPercentage(50);
+                      }
                     }}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
                     disabled={adding}
                   >
                     <option value="">Select type</option>
-                    <option value="BASIC">Basic</option>
-                    <option value="ADDITIONAL">Additional</option>
+                    <option value="BASIC">Basic (uses default split)</option>
+                    <option value="ADDITIONAL">Additional (custom split)</option>
                   </select>
                 </div>
-                {newType === 'ADDITIONAL' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Bucket *</label>
-                    <select
-                      value={newBucket}
-                      onChange={e => setNewBucket(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
-                      disabled={adding}
-                    >
-                      <option value="">Select bucket</option>
-                      <option value="LIFT">LIFT</option>
-                      <option value="ALUMNI_ASSOCIATION">Alumni Association</option>
-                    </select>
-                  </div>
-                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹) *</label>
                   <input
@@ -249,21 +239,63 @@ export default function AlumniContributions() {
                     disabled={adding}
                   />
                 </div>
-                {newType === 'BASIC' && newAmount && (
-                  <div className="p-3 bg-gray-50 rounded-lg border">
-                    <div className="text-sm font-medium text-gray-700 mb-2">Split Preview</div>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
-                        <span>LIFT ({splitPercentage}%): </span>
-                        <span className="font-semibold">₹{(Number(newAmount) * splitPercentage / 100).toFixed(2)}</span>
+                {newType && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Split Percentage *
+                      {newType === 'BASIC' && <span className="text-xs text-gray-500 ml-2">(using system default {systemDefaultSplit}% LIFT / {100 - systemDefaultSplit}% AA)</span>}
+                    </label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">LIFT %</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={newLiftPercentage}
+                          onChange={e => {
+                            const lift = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+                            setNewLiftPercentage(lift);
+                            setNewAaPercentage(100 - lift);
+                          }}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
+                          disabled={adding || newType === 'BASIC'}
+                        />
+                        {newType === 'BASIC' && <p className="text-xs text-gray-500 mt-1">Set by system default</p>}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-3 h-3 bg-purple-500 rounded-full"></span>
-                        <span>AA ({100 - splitPercentage}%): </span>
-                        <span className="font-semibold">₹{(Number(newAmount) * (100 - splitPercentage) / 100).toFixed(2)}</span>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Alumni Association %</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={newAaPercentage}
+                          onChange={e => {
+                            const aa = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+                            setNewAaPercentage(aa);
+                            setNewLiftPercentage(100 - aa);
+                          }}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
+                          disabled={adding || newType === 'BASIC'}
+                        />
+                        {newType === 'BASIC' && <p className="text-xs text-gray-500 mt-1">Set by system default</p>}
                       </div>
                     </div>
+                    {newAmount && (
+                      <div className="mt-2 p-3 bg-gray-50 rounded-lg border">
+                        <div className="text-sm font-medium text-gray-700 mb-2">Split Preview</div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
+                            <span>LIFT: ₹{(Number(newAmount) * newLiftPercentage / 100).toFixed(2)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="w-3 h-3 bg-purple-500 rounded-full"></span>
+                            <span>AA: ₹{(Number(newAmount) * newAaPercentage / 100).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div>
@@ -317,25 +349,22 @@ export default function AlumniContributions() {
                         <div className="flex items-center space-x-4">
                           <div className="font-semibold text-lg text-deep-red">₹{c.amount.toLocaleString()}</div>
                           <TypeBadge type={c.type} />
-                          {c.type === 'ADDITIONAL' && <BucketBadge bucket={c.bucket} />}
                         </div>
                         <div className="flex items-center space-x-2">
                           <div className="text-sm text-gray-500">{new Date(c.date).toLocaleDateString()}</div>
                           <StatusBadge status={c.status} />
                         </div>
                       </div>
-                      {c.type === 'BASIC' && (
-                        <div className="mt-2 text-xs text-gray-500 flex gap-4">
-                          <span className="flex items-center gap-1">
-                            <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                            LIFT: ₹{(c.liftAmount || 0).toLocaleString()}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                            AA: ₹{(c.aaAmount || 0).toLocaleString()}
-                          </span>
-                        </div>
-                      )}
+                      <div className="mt-2 text-xs text-gray-500 flex gap-4">
+                        <span className="flex items-center gap-1">
+                          <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                          LIFT: ₹{(c.liftAmount || 0).toLocaleString()} ({c.liftPercentage || 0}%)
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                          AA: ₹{(c.aaAmount || 0).toLocaleString()} ({c.aaPercentage || 0}%)
+                        </span>
+                      </div>
                       {c.notes && <div className="mt-2 text-sm text-gray-600">{c.notes}</div>}
                     </div>
                   ))

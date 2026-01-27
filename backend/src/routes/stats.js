@@ -139,30 +139,21 @@ router.get('/overview', async (req, res) => {
     }
 
     // Calculate bucket-wise contributions (from all data)
-    // For LIFT bucket: sum liftAmount (for BASIC contributions) + amount where bucket='LIFT' and type='ADDITIONAL'
-    // For AA bucket: sum aaAmount (for BASIC contributions) + amount where bucket='ALUMNI_ASSOCIATION' and type='ADDITIONAL'
+    // All contributions now have NULL bucket, just sum by amount fields directly
 
-    // LIFT bucket: BASIC contributions have liftAmount, ADDITIONAL have amount
-    const liftBasicContribs = await prisma.contribution.aggregate({
-      where: { ...bucketContribWhere, bucket: 'LIFT', type: 'BASIC' },
+    // LIFT bucket: sum liftAmount across all contributions
+    const liftContribs = await prisma.contribution.aggregate({
+      where: bucketContribWhere,
       _sum: { liftAmount: true }
     });
-    const liftAdditionalContribs = await prisma.contribution.aggregate({
-      where: { ...bucketContribWhere, bucket: 'LIFT', type: 'ADDITIONAL' },
-      _sum: { amount: true }
-    });
-    const liftTotal = (liftBasicContribs._sum.liftAmount || 0) + (liftAdditionalContribs._sum.amount || 0);
+    const liftTotal = liftContribs._sum.liftAmount || 0;
 
-    // ALUMNI_ASSOCIATION bucket: BASIC contributions have aaAmount, ADDITIONAL have amount
-    const aaBasicContribs = await prisma.contribution.aggregate({
-      where: { ...bucketContribWhere, bucket: 'ALUMNI_ASSOCIATION', type: 'BASIC' },
+    // ALUMNI_ASSOCIATION bucket: sum aaAmount across all contributions
+    const aaContribs = await prisma.contribution.aggregate({
+      where: bucketContribWhere,
       _sum: { aaAmount: true }
     });
-    const aaAdditionalContribs = await prisma.contribution.aggregate({
-      where: { ...bucketContribWhere, bucket: 'ALUMNI_ASSOCIATION', type: 'ADDITIONAL' },
-      _sum: { amount: true }
-    });
-    const aaTotal = (aaBasicContribs._sum.aaAmount || 0) + (aaAdditionalContribs._sum.amount || 0);
+    const aaTotal = aaContribs._sum.aaAmount || 0;
 
     // Calculate bucket-wise expenses (from all data)
     const liftExpenses = await prisma.expense.aggregate({

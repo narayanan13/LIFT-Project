@@ -29,22 +29,6 @@ function TypeBadge({ type }) {
   )
 }
 
-function BucketBadge({ bucket }) {
-  const styles = {
-    LIFT: 'bg-blue-100 text-blue-800',
-    ALUMNI_ASSOCIATION: 'bg-purple-100 text-purple-800'
-  }
-  const labels = {
-    LIFT: 'LIFT',
-    ALUMNI_ASSOCIATION: 'Alumni Assoc.'
-  }
-  return (
-    <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[bucket] || 'bg-gray-100'}`}>
-      {labels[bucket] || bucket}
-    </span>
-  )
-}
-
 export default function AdminContributions() {
   const user = JSON.parse(localStorage.getItem('user'))
   const isTreasurer = user?.officePosition === 'TREASURER'
@@ -63,18 +47,32 @@ function TreasurerContributionsView() {
   const [users, setUsers] = useState([])
   const [filter, setFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
-  const [bucketFilter, setBucketFilter] = useState('all')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editContribution, setEditContribution] = useState(null)
-  const [formData, setFormData] = useState({ userId: '', amount: '', date: '', notes: '', type: '', bucket: '' })
-  const [editForm, setEditForm] = useState({ amount: '', date: '', notes: '', status: '' })
+  const [formData, setFormData] = useState({
+    userId: '',
+    amount: '',
+    date: '',
+    notes: '',
+    type: '',
+    liftPercentage: 50,
+    aaPercentage: 50
+  })
+  const [editForm, setEditForm] = useState({
+    amount: '',
+    date: '',
+    notes: '',
+    status: '',
+    liftPercentage: 50,
+    aaPercentage: 50
+  })
   const [toast, setToast] = useState({ show: false, message: '', type: 'info' })
   const [auditLogs, setAuditLogs] = useState({})
   const [expandedAudit, setExpandedAudit] = useState(null)
   const [loadingAudit, setLoadingAudit] = useState(false)
-  const [splitPercentage, setSplitPercentage] = useState(50)
+  const [systemDefaultSplit, setSystemDefaultSplit] = useState(50)
 
   useEffect(() => {
     fetchContributions()
@@ -110,7 +108,7 @@ function TreasurerContributionsView() {
   const fetchSplitSetting = async () => {
     try {
       const res = await api.get('/admin/settings/basic_contribution_split_lift')
-      setSplitPercentage(parseFloat(res.data.value))
+      setSystemDefaultSplit(parseFloat(res.data.value))
     } catch (err) {
       console.error('Failed to fetch split setting')
     }
@@ -151,22 +149,35 @@ function TreasurerContributionsView() {
       showToast('Please fill in all required fields', 'error')
       return
     }
-    if (formData.type === 'ADDITIONAL' && !formData.bucket) {
-      showToast('Please select a bucket for ADDITIONAL contributions', 'error')
-      return
-    }
     if (isNaN(formData.amount) || Number(formData.amount) <= 0) {
       showToast('Please enter a valid positive amount', 'error')
       return
     }
+    // Validate percentages
+    if (Math.abs((formData.liftPercentage || 0) + (formData.aaPercentage || 0) - 100) > 0.01) {
+      showToast('LIFT and AA percentages must sum to 100%', 'error')
+      return
+    }
     try {
-      // Exclude bucket field for BASIC contributions (server handles split)
-      const dataToSend = formData.type === 'BASIC'
-        ? { ...formData, bucket: undefined }
-        : formData
-      await api.post('/admin/contributions', dataToSend)
+      await api.post('/admin/contributions', {
+        userId: formData.userId,
+        amount: Number(formData.amount),
+        date: formData.date,
+        notes: formData.notes,
+        type: formData.type,
+        liftPercentage: formData.liftPercentage,
+        aaPercentage: formData.aaPercentage
+      })
       setShowModal(false)
-      setFormData({ userId: '', amount: '', date: '', notes: '', type: '', bucket: '' })
+      setFormData({
+        userId: '',
+        amount: '',
+        date: '',
+        notes: '',
+        type: '',
+        liftPercentage: 50,
+        aaPercentage: 50
+      })
       fetchContributions()
       showToast('Contribution added successfully', 'success')
     } catch (error) {
@@ -200,7 +211,9 @@ function TreasurerContributionsView() {
       amount: contribution.amount,
       date: new Date(contribution.date).toISOString().split('T')[0],
       notes: contribution.notes || '',
-      status: contribution.status
+      status: contribution.status,
+      liftPercentage: contribution.liftPercentage || 50,
+      aaPercentage: contribution.aaPercentage || 50
     })
   }
 
@@ -210,13 +223,26 @@ function TreasurerContributionsView() {
       showToast('Please enter a valid positive amount', 'error')
       return
     }
+    // Only validate percentages for ADDITIONAL (BASIC uses system default)
+    if (editContribution.type === 'ADDITIONAL') {
+      if (Math.abs((editForm.liftPercentage || 0) + (editForm.aaPercentage || 0) - 100) > 0.01) {
+        showToast('LIFT and AA percentages must sum to 100%', 'error')
+        return
+      }
+    }
     try {
-      await api.put(`/admin/contributions/${editContribution.id}`, {
+      const dataToSend = {
         amount: Number(editForm.amount),
         date: editForm.date,
         notes: editForm.notes,
         status: editForm.status
-      })
+      }
+      // Only include split percentages for ADDITIONAL contributions
+      if (editContribution.type === 'ADDITIONAL') {
+        dataToSend.liftPercentage = editForm.liftPercentage
+        dataToSend.aaPercentage = editForm.aaPercentage
+      }
+      await api.put(`/admin/contributions/${editContribution.id}`, dataToSend)
       setEditContribution(null)
       fetchContributions()
       showToast('Contribution updated', 'success')
@@ -228,7 +254,6 @@ function TreasurerContributionsView() {
   let filteredList = list
   if (filter !== 'all') filteredList = filteredList.filter(c => c.status === filter)
   if (typeFilter !== 'all') filteredList = filteredList.filter(c => c.type === typeFilter)
-  if (bucketFilter !== 'all') filteredList = filteredList.filter(c => c.bucket === bucketFilter)
 
   const pendingCount = list.filter(c => c.status === 'PENDING').length
 
@@ -302,19 +327,6 @@ function TreasurerContributionsView() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">Bucket</label>
-          <select
-            value={bucketFilter}
-            onChange={(e) => setBucketFilter(e.target.value)}
-            className="p-2 border rounded"
-          >
-            <option value="all">All Buckets</option>
-            <option value="LIFT">LIFT</option>
-            <option value="ALUMNI_ASSOCIATION">Alumni Association</option>
-          </select>
-        </div>
-
-        <div>
           <label className="block text-sm font-medium mb-2">From Date</label>
           <input
             type="date"
@@ -357,7 +369,7 @@ function TreasurerContributionsView() {
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">User</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Amount</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Type</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Bucket Split</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Split</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Date</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Status</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Notes</th>
@@ -380,20 +392,16 @@ function TreasurerContributionsView() {
                       <td className="px-4 py-3 font-semibold text-green-600">₹{c.amount.toLocaleString()}</td>
                       <td className="px-4 py-3"><TypeBadge type={c.type} /></td>
                       <td className="px-4 py-3">
-                        {c.type === 'BASIC' ? (
-                          <div className="text-xs space-y-1">
-                            <div className="flex items-center gap-1">
-                              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                              <span>LIFT: ₹{(c.liftAmount || 0).toLocaleString()}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                              <span>AA: ₹{(c.aaAmount || 0).toLocaleString()}</span>
-                            </div>
+                        <div className="text-xs space-y-1">
+                          <div className="flex items-center gap-1">
+                            <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                            <span>LIFT: ₹{(c.liftAmount || 0).toLocaleString()} ({c.liftPercentage || 0}%)</span>
                           </div>
-                        ) : (
-                          <BucketBadge bucket={c.bucket} />
-                        )}
+                          <div className="flex items-center gap-1">
+                            <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                            <span>AA: ₹{(c.aaAmount || 0).toLocaleString()} ({c.aaPercentage || 0}%)</span>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-4 py-3">{new Date(c.date).toLocaleDateString()}</td>
                       <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
@@ -480,30 +488,27 @@ function TreasurerContributionsView() {
                 <label className="block text-sm font-medium mb-1">Type *</label>
                 <select
                   value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value, bucket: e.target.value === 'BASIC' ? '' : formData.bucket })}
+                  onChange={(e) => {
+                    const newType = e.target.value
+                    // For BASIC: pre-fill with system default split
+                    // For ADDITIONAL: use 50-50 as starting point
+                    const defaultSplit = newType === 'BASIC' ? systemDefaultSplit : 50
+                    setFormData({
+                      ...formData,
+                      type: newType,
+                      liftPercentage: defaultSplit,
+                      aaPercentage: 100 - defaultSplit
+                    })
+                  }}
                   className="w-full p-2 border rounded"
                   required
                 >
                   <option value="">Select type</option>
-                  <option value="BASIC">Basic</option>
-                  <option value="ADDITIONAL">Additional</option>
+                  <option value="BASIC">Basic (uses default split)</option>
+                  <option value="ADDITIONAL">Additional (custom split)</option>
                 </select>
               </div>
-              {formData.type === 'ADDITIONAL' && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1">Bucket *</label>
-                  <select
-                    value={formData.bucket}
-                    onChange={(e) => setFormData({ ...formData, bucket: e.target.value })}
-                    className="w-full p-2 border rounded"
-                    required
-                  >
-                    <option value="">Select bucket</option>
-                    <option value="LIFT">LIFT</option>
-                    <option value="ALUMNI_ASSOCIATION">Alumni Association</option>
-                  </select>
-                </div>
-              )}
+
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-1">Amount (₹) *</label>
                 <input
@@ -517,21 +522,66 @@ function TreasurerContributionsView() {
                   required
                 />
               </div>
-              {formData.type === 'BASIC' && formData.amount && (
-                <div className="mb-4 p-3 bg-gray-50 rounded border">
-                  <div className="text-sm font-medium text-gray-700 mb-2">Split Preview</div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
-                      <span>LIFT ({splitPercentage}%): </span>
-                      <span className="font-semibold">₹{(Number(formData.amount) * splitPercentage / 100).toFixed(2)}</span>
+
+              {formData.type && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">
+                    Split Percentage *
+                    {formData.type === 'BASIC' && <span className="text-xs text-gray-500 ml-2">(using system default {systemDefaultSplit}% LIFT / {100 - systemDefaultSplit}% AA)</span>}
+                  </label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">LIFT %</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={formData.liftPercentage || 50}
+                        onChange={(e) => {
+                          const lift = Math.min(100, Math.max(0, Number(e.target.value) || 0))
+                          setFormData({
+                            ...formData,
+                            liftPercentage: lift,
+                            aaPercentage: 100 - lift
+                          })
+                        }}
+                        className="w-full p-2 border rounded"
+                        disabled={formData.type === 'BASIC'}
+                        required
+                      />
+                      {formData.type === 'BASIC' && <p className="text-xs text-gray-500 mt-1">Set by system default</p>}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 bg-purple-500 rounded-full"></span>
-                      <span>AA ({100 - splitPercentage}%): </span>
-                      <span className="font-semibold">₹{(Number(formData.amount) * (100 - splitPercentage) / 100).toFixed(2)}</span>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Alumni Association %</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={formData.aaPercentage || 50}
+                        onChange={(e) => {
+                          const aa = Math.min(100, Math.max(0, Number(e.target.value) || 0))
+                          setFormData({
+                            ...formData,
+                            aaPercentage: aa,
+                            liftPercentage: 100 - aa
+                          })
+                        }}
+                        className="w-full p-2 border rounded"
+                        disabled={formData.type === 'BASIC'}
+                        required
+                      />
+                      {formData.type === 'BASIC' && <p className="text-xs text-gray-500 mt-1">Set by system default</p>}
                     </div>
                   </div>
+                  {formData.amount && (
+                    <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
+                      <div className="text-xs text-gray-600 mb-1">Preview:</div>
+                      <div className="flex justify-between">
+                        <span>LIFT: ₹{(Number(formData.amount) * (formData.liftPercentage || 0) / 100).toFixed(2)}</span>
+                        <span>AA: ₹{(Number(formData.amount) * (formData.aaPercentage || 0) / 100).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               <div className="mb-4">
@@ -559,7 +609,15 @@ function TreasurerContributionsView() {
                   type="button"
                   onClick={() => {
                     setShowModal(false)
-                    setFormData({ userId: '', amount: '', date: '', notes: '', type: '', bucket: '' })
+                    setFormData({
+                      userId: '',
+                      amount: '',
+                      date: '',
+                      notes: '',
+                      type: '',
+                      liftPercentage: 50,
+                      aaPercentage: 50
+                    })
                   }}
                   className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
                 >
@@ -597,6 +655,65 @@ function TreasurerContributionsView() {
                   className="w-full p-2 border rounded"
                   required
                 />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">
+                  Split Percentage *
+                  {editContribution?.type === 'BASIC' && <span className="text-xs text-gray-500 ml-2">(using system default {systemDefaultSplit}% LIFT / {100 - systemDefaultSplit}% AA)</span>}
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">LIFT %</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={editForm.liftPercentage || 50}
+                      onChange={(e) => {
+                        const lift = Math.min(100, Math.max(0, Number(e.target.value) || 0))
+                        setEditForm({
+                          ...editForm,
+                          liftPercentage: lift,
+                          aaPercentage: 100 - lift
+                        })
+                      }}
+                      className="w-full p-2 border rounded"
+                      disabled={editContribution?.type === 'BASIC'}
+                      required
+                    />
+                    {editContribution?.type === 'BASIC' && <p className="text-xs text-gray-500 mt-1">Set by system default</p>}
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Alumni Association %</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={editForm.aaPercentage || 50}
+                      onChange={(e) => {
+                        const aa = Math.min(100, Math.max(0, Number(e.target.value) || 0))
+                        setEditForm({
+                          ...editForm,
+                          aaPercentage: aa,
+                          liftPercentage: 100 - aa
+                        })
+                      }}
+                      className="w-full p-2 border rounded"
+                      disabled={editContribution?.type === 'BASIC'}
+                      required
+                    />
+                    {editContribution?.type === 'BASIC' && <p className="text-xs text-gray-500 mt-1">Set by system default</p>}
+                  </div>
+                </div>
+                {editForm.amount && (
+                  <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
+                    <div className="text-xs text-gray-600 mb-1">Preview:</div>
+                    <div className="flex justify-between">
+                      <span>LIFT: ₹{(Number(editForm.amount) * (editForm.liftPercentage || 0) / 100).toFixed(2)}</span>
+                      <span>AA: ₹{(Number(editForm.amount) * (editForm.aaPercentage || 0) / 100).toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-1">Date *</label>

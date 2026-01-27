@@ -458,11 +458,20 @@ const alumniContributionSchema = Joi.object({
   date: Joi.date().optional(),
   notes: Joi.string().allow('', null).optional(),
   type: Joi.string().valid('BASIC', 'ADDITIONAL').required(),
-  bucket: Joi.string().valid('LIFT', 'ALUMNI_ASSOCIATION').when('type', {
-    is: 'ADDITIONAL',
-    then: Joi.required(),
-    otherwise: Joi.optional()
-  })
+  liftPercentage: Joi.number().min(0).max(100).optional(),
+  aaPercentage: Joi.number().min(0).max(100).optional()
+}).custom((value, helpers) => {
+  // For ADDITIONAL, validate percentages are provided and sum to 100
+  if (value.type === 'ADDITIONAL') {
+    if (value.liftPercentage === undefined || value.aaPercentage === undefined) {
+      return helpers.error('any.required');
+    }
+    if (Math.abs((value.liftPercentage || 0) + (value.aaPercentage || 0) - 100) > 0.01) {
+      return helpers.error('any.invalid');
+    }
+  }
+  // For BASIC, percentages are not required (will use system default)
+  return value;
 });
 
 router.post('/contributions', async (req, res) => {
@@ -471,7 +480,7 @@ router.post('/contributions', async (req, res) => {
     return res.status(400).json({ error: error.details[0].message });
   }
 
-  const { amount, date, notes, type, bucket } = value;
+  const { amount, date, notes, type, liftPercentage, aaPercentage } = value;
 
   let contributionDate = new Date();
   if (date) {
@@ -483,35 +492,39 @@ router.post('/contributions', async (req, res) => {
   }
 
   try {
-    let contributionData = {
+    let effectiveLiftPct, effectiveAaPct;
+
+    if (type === 'BASIC') {
+      // For BASIC, fetch system default split from settings
+      const splitSetting = await prisma.settings.findUnique({
+        where: { key: 'basic_contribution_split_lift' }
+      });
+      effectiveLiftPct = splitSetting ? parseFloat(splitSetting.value) : 50;
+      effectiveAaPct = 100 - effectiveLiftPct;
+    } else {
+      // For ADDITIONAL, use provided percentages
+      effectiveLiftPct = liftPercentage;
+      effectiveAaPct = aaPercentage;
+    }
+
+    const liftAmount = (Number(amount) * effectiveLiftPct) / 100;
+    const aaAmount = (Number(amount) * effectiveAaPct) / 100;
+
+    const contributionData = {
       userId: req.user.id,
       amount: Number(amount),
       date: contributionDate,
       notes,
       type,
       status: 'PENDING',
+      bucket: null,
+      liftAmount,
+      aaAmount,
+      liftPercentage: effectiveLiftPct,
+      aaPercentage: effectiveAaPct,
+      splitPercentage: effectiveLiftPct, // Keep for backward compatibility
       createdBy: req.user.id
     };
-
-    if (type === 'BASIC') {
-      // Get split percentage from settings
-      const splitSetting = await prisma.settings.findUnique({
-        where: { key: 'basic_contribution_split_lift' }
-      });
-      const splitPercentage = splitSetting ? parseFloat(splitSetting.value) : 50;
-      const liftAmount = (amount * splitPercentage) / 100;
-      const aaAmount = amount - liftAmount;
-
-      contributionData.bucket = 'LIFT'; // BASIC contributions are tracked under LIFT but split across both
-      contributionData.liftAmount = liftAmount;
-      contributionData.aaAmount = aaAmount;
-      contributionData.splitPercentage = splitPercentage;
-    } else {
-      // ADDITIONAL contributions go to specified bucket
-      contributionData.bucket = bucket;
-      contributionData.liftAmount = bucket === 'LIFT' ? amount : 0;
-      contributionData.aaAmount = bucket === 'ALUMNI_ASSOCIATION' ? amount : 0;
-    }
 
     const contribution = await prisma.contribution.create({
       data: contributionData

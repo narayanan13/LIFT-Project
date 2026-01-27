@@ -46,10 +46,12 @@ model Contribution {
   notes           String?
   type            ContributionType   @default(ADDITIONAL)
   status          ContributionStatus @default(PENDING)
-  bucket          Bucket             @default(LIFT)
+  bucket          Bucket?            // Now nullable - both types use split percentages
   liftAmount      Float?             @map("lift_amount")
   aaAmount        Float?             @map("aa_amount")
-  splitPercentage Float?             @map("split_percentage")
+  liftPercentage  Float?             @map("lift_percentage")  // Explicit LIFT %
+  aaPercentage    Float?             @map("aa_percentage")    // Explicit AA %
+  splitPercentage Float?             @map("split_percentage")  // Kept for backward compatibility
   createdBy       String?            @map("created_by")
   approvedBy      String?            @map("approved_by")
   approvedAt      DateTime?          @map("approved_at")
