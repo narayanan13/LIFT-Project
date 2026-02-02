@@ -36,7 +36,8 @@ export default function DashboardLayout({ links, role, children }){
     { to: '/admin/events', label: 'Events/Groups' },
     { to: '/admin/expenses', label: 'Expenses' },
     { to: '/admin/meetings', label: 'Meetings' },
-    { to: '/admin/change-password', label: 'Change Password' },
+    // Only show Change Password if user has a password (not Google-only)
+    ...(user?.hasPassword !== false ? [{ to: '/admin/change-password', label: 'Change Password' }] : []),
   ]
   const alumniLinks = [
     { to: '/alumni', label: 'Home' },
@@ -46,7 +47,8 @@ export default function DashboardLayout({ links, role, children }){
     { to: '/alumni/expenses', label: 'Expenses' },
     { to: '/alumni/meetings', label: 'Meetings' },
     { to: '/alumni/action-items', label: 'Action Items' },
-    { to: '/alumni/change-password', label: 'Change Password' },
+    // Only show Change Password if user has a password (not Google-only)
+    ...(user?.hasPassword !== false ? [{ to: '/alumni/change-password', label: 'Change Password' }] : []),
   ]
   const nav = links ?? (role === 'ADMIN' ? adminLinks : alumniLinks)
 

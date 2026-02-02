@@ -15,7 +15,8 @@ const createUserSchema = Joi.object({
   password: Joi.string()
     .min(12)
     .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-    .required()
+    .allow('', null)
+    .optional()
     .messages({
       'string.pattern.base': 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)'
     }),
@@ -35,9 +36,13 @@ router.post('/users', authRequired, requireRole('ADMIN'), async (req, res) => {
   const { error, value } = createUserSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.details[0].message });
   const { name, email, password, role, officePosition } = value;
-  const passwordHash = hashPassword(password);
+
   try {
-    const data = { name, email, passwordHash, role };
+    const data = { name, email, role };
+    // Only hash and set password if provided
+    if (password) {
+      data.passwordHash = hashPassword(password);
+    }
     // Only set officePosition for ADMIN users
     if (role === 'ADMIN' && officePosition) {
       data.officePosition = officePosition;

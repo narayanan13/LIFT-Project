@@ -96,14 +96,16 @@ export default function AdminUsers(){
                   className="w-full p-2 border rounded"
                   required
                 />
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={form.password}
-                  onChange={(e)=>setForm({...form, password: e.target.value})}
-                  className="w-full p-2 border rounded"
-                  required
-                />
+                <div>
+                  <input
+                    type="password"
+                    placeholder="Password (optional - user can login with Google)"
+                    value={form.password}
+                    onChange={(e)=>setForm({...form, password: e.target.value})}
+                    className="w-full p-2 border rounded"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Leave empty if user will sign in with Google</p>
+                </div>
                 <select
                   value={form.role}
                   onChange={(e)=>setForm({...form, role: e.target.value, officePosition: e.target.value === 'ADMIN' ? form.officePosition : ''})}
