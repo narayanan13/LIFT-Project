@@ -1,9 +1,12 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
+import { OAuth2Client } from 'google-auth-library';
 import { verifyPassword, hashPassword } from '../utils/auth.js';
 import Joi from 'joi';
 import { signJwt } from '../utils/jwt.js';
 import { authRequired } from '../middleware/authMiddleware.js';
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -21,11 +24,72 @@ router.post('/login', async (req, res) => {
   const { email, password } = value;
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !user.active) return res.status(401).json({ error: 'Invalid credentials' });
+
+  // Check if user has a password (might only have Google auth)
+  if (!user.passwordHash) {
+    return res.status(401).json({ error: 'Please sign in with Google' });
+  }
+
   const ok = verifyPassword(password, user.passwordHash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
 
   const token = signJwt({ id: user.id, role: user.role, email: user.email, name: user.name, officePosition: user.officePosition });
   res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, officePosition: user.officePosition }, token });
+});
+
+// Google OAuth login
+const googleAuthSchema = Joi.object({
+  credential: Joi.string().required()
+});
+
+router.post('/google', async (req, res) => {
+  const { error, value } = googleAuthSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  try {
+    // Verify the Google ID token
+    const ticket = await googleClient.verifyIdToken({
+      idToken: value.credential,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+    const email = payload.email;
+    const googleId = payload.sub; // Google's unique user ID
+
+    if (!payload.email_verified) {
+      return res.status(401).json({ error: 'Google email not verified' });
+    }
+
+    // Find existing user by email
+    let user = await prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      return res.status(401).json({ error: 'No account found with this email. Please contact an administrator.' });
+    }
+
+    if (!user.active) {
+      return res.status(401).json({ error: 'Account is deactivated' });
+    }
+
+    // Link Google ID if not already linked
+    if (!user.googleId) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { googleId }
+      });
+    } else if (user.googleId !== googleId) {
+      // Google ID mismatch - email might have been reused by different Google account
+      return res.status(401).json({ error: 'This email is linked to a different Google account' });
+    }
+
+    // Generate JWT token
+    const token = signJwt({ id: user.id, role: user.role, email: user.email, name: user.name, officePosition: user.officePosition });
+    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, officePosition: user.officePosition }, token });
+  } catch (err) {
+    console.error('Google auth error:', err);
+    res.status(401).json({ error: 'Invalid Google token' });
+  }
 });
 
 const changePasswordSchema = Joi.object({
@@ -48,6 +112,11 @@ router.put('/change-password', authRequired, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Check if user has a password (might only have Google auth)
+    if (!user.passwordHash) {
+      return res.status(400).json({ error: 'Cannot change password for Google-only accounts' });
+    }
 
     const isValid = verifyPassword(currentPassword, user.passwordHash);
     if (!isValid) return res.status(401).json({ error: 'Current password is incorrect' });
