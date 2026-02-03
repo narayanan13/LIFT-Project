@@ -9,6 +9,7 @@ import DashboardLayout from './components/DashboardLayout'
 import AdminOverview from './pages/admin/Overview'
 import AdminUsers from './pages/admin/Users'
 import AdminContributions from './pages/admin/Contributions'
+import BulkContributions from './pages/admin/BulkContributions'
 import AdminExpenses from './pages/admin/Expenses'
 import AdminEvents from './pages/admin/Events'
 import AdminAnnouncements from './pages/admin/Announcements'
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="overview" element={<AdminOverview />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="contributions" element={<AdminContributions />} />
+          <Route path="contributions/bulk" element={<BulkContributions />} />
           <Route path="events" element={<AdminEvents />} />
           <Route path="expenses" element={<AdminExpenses />} />
           <Route path="announcements" element={<AdminAnnouncements />} />

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../../api'
-import { FaPlus, FaEdit, FaCheck, FaTimes } from 'react-icons/fa'
+import { FaPlus, FaEdit, FaCheck, FaTimes, FaList } from 'react-icons/fa'
 import AuditLogTable from '../../components/AuditLogTable'
 import AlumniContributions from '../alumni/AlumniContributions'
 
@@ -43,6 +44,7 @@ export default function AdminContributions() {
 }
 
 function TreasurerContributionsView() {
+  const navigate = useNavigate()
   const [list, setList] = useState([])
   const [users, setUsers] = useState([])
   const [filter, setFilter] = useState('all')
@@ -273,12 +275,20 @@ function TreasurerContributionsView() {
       {/* Header */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Contributions</h2>
-        <button
-          onClick={() => setShowModal(true)}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center"
-        >
-          <FaPlus className="mr-2" /> Add Contribution
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => navigate('/admin/contributions/bulk')}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center"
+          >
+            <FaList className="mr-2" /> Bulk Add
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center"
+          >
+            <FaPlus className="mr-2" /> Add Contribution
+          </button>
+        </div>
       </div>
 
       {/* Filter Tabs */}

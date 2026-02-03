@@ -156,6 +156,82 @@ router.post('/contributions', authRequired, requireRole('ADMIN'), requirePositio
   }
 });
 
+router.post('/contributions/bulk', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
+  const { contributions } = req.body;
+  if (!Array.isArray(contributions) || contributions.length === 0) {
+    return res.status(400).json({ error: 'Contributions array is required' });
+  }
+
+  try {
+    // Fetch system default split for BASIC contributions
+    const splitSetting = await prisma.settings.findUnique({
+      where: { key: 'basic_contribution_split_lift' }
+    });
+    const defaultLiftPct = splitSetting ? parseFloat(splitSetting.value) : 50;
+
+    const createdContributions = [];
+
+    for (const contrib of contributions) {
+      // Validate required fields
+      if (!contrib.userId || !contrib.amount || !contrib.date || !contrib.type) {
+        return res.status(400).json({ error: 'Each contribution must have userId, amount, date, and type' });
+      }
+
+      if (!['BASIC', 'ADDITIONAL'].includes(contrib.type)) {
+        return res.status(400).json({ error: 'Type must be BASIC or ADDITIONAL' });
+      }
+
+      let effectiveLiftPct, effectiveAaPct;
+
+      if (contrib.type === 'BASIC') {
+        effectiveLiftPct = defaultLiftPct;
+        effectiveAaPct = 100 - defaultLiftPct;
+      } else {
+        // For ADDITIONAL, validate percentages
+        if (contrib.liftPercentage === undefined || contrib.aaPercentage === undefined) {
+          return res.status(400).json({ error: 'ADDITIONAL contributions require liftPercentage and aaPercentage' });
+        }
+        if (Math.abs((contrib.liftPercentage || 0) + (contrib.aaPercentage || 0) - 100) > 0.01) {
+          return res.status(400).json({ error: 'LIFT and AA percentages must sum to 100' });
+        }
+        effectiveLiftPct = contrib.liftPercentage;
+        effectiveAaPct = contrib.aaPercentage;
+      }
+
+      const amount = Number(contrib.amount);
+      const liftAmount = (amount * effectiveLiftPct) / 100;
+      const aaAmount = (amount * effectiveAaPct) / 100;
+
+      const created = await prisma.contribution.create({
+        data: {
+          userId: contrib.userId,
+          amount,
+          date: new Date(contrib.date),
+          notes: contrib.notes || null,
+          type: contrib.type,
+          status: 'APPROVED',
+          bucket: null,
+          liftAmount,
+          aaAmount,
+          liftPercentage: effectiveLiftPct,
+          aaPercentage: effectiveAaPct,
+          splitPercentage: effectiveLiftPct,
+          createdBy: req.user.id,
+          approvedBy: req.user.id,
+          approvedAt: new Date()
+        },
+        include: { user: true }
+      });
+
+      createdContributions.push(created);
+    }
+
+    res.json({ created: createdContributions.length, contributions: createdContributions });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to create contributions', detail: e.message });
+  }
+});
+
 router.get('/contributions', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
   const { status, type, bucket, startDate, endDate } = req.query;
   const where = {};
