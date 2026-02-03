@@ -68,8 +68,7 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="bg-white shadow-2xl rounded-2xl p-8 border border-gray-200">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gradient mb-2">LIFT</h1>
-            <p className="text-gray-600">Alumni Financial Tracking System</p>
+            <h1 className="text-3xl font-bold text-gradient">LIFT Alumni Hub</h1>
           </div>
           <form onSubmit={submit} className="space-y-6">
             {error && (
