@@ -34,7 +34,7 @@ router.post('/login', async (req, res) => {
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
 
   const token = signJwt({ id: user.id, role: user.role, email: user.email, name: user.name, officePosition: user.officePosition });
-  res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, officePosition: user.officePosition, hasPassword: true }, token });
+  res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, officePosition: user.officePosition, hasGoogleId: !!user.googleId }, token });
 });
 
 // Google OAuth login
@@ -85,7 +85,7 @@ router.post('/google', async (req, res) => {
 
     // Generate JWT token
     const token = signJwt({ id: user.id, role: user.role, email: user.email, name: user.name, officePosition: user.officePosition });
-    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, officePosition: user.officePosition, hasPassword: !!user.passwordHash }, token });
+    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, officePosition: user.officePosition, hasGoogleId: true }, token });
   } catch (err) {
     console.error('Google auth error:', err);
     res.status(401).json({ error: 'Invalid Google token' });
