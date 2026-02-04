@@ -40,25 +40,6 @@ const LandingPage = () => {
         <section style={{backgroundColor: 'rgba(246, 175, 82, 1)'}}>
           <div className="max-w-7xl mx-auto px-4 py-20 text-center">
             <h2 className="text-4xl font-bold text-white animate-highlight">Carry It Forward Together</h2>
-            <div className="mt-6">
-              <a
-                href="/login"
-                className="bg-soft-peach text-deep-red px-6 py-3 rounded-lg font-semibold hover:bg-very-light-peach"
-              >
-                Sign In
-              </a>
-            </div>
-          </div>
-        </section>
-
-        {/* About Section */}
-        <section id="about" className="max-w-7xl mx-auto px-4 py-16">
-          <div className="text-center">
-            <h3 className="text-3xl font-bold text-deep-red">Why This Platform?</h3>
-            <p className="mt-4 text-soft-peach max-w-2xl mx-auto">
-              LIFT Alumni Network makes it simple to contribute financially, track
-              budgets, and ensure every rupee is used for nurturing future talent.
-            </p>
           </div>
         </section>
       </div>
