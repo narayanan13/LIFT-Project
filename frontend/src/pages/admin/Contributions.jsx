@@ -55,20 +55,18 @@ function TreasurerContributionsView() {
   const [editContribution, setEditContribution] = useState(null)
   const [formData, setFormData] = useState({
     userId: '',
-    amount: '',
+    liftAmount: '',
+    aaAmount: '',
     date: '',
     notes: '',
-    type: '',
-    liftPercentage: 50,
-    aaPercentage: 50
+    type: ''
   })
   const [editForm, setEditForm] = useState({
-    amount: '',
+    liftAmount: '',
+    aaAmount: '',
     date: '',
     notes: '',
-    status: '',
-    liftPercentage: 50,
-    aaPercentage: 50
+    status: ''
   })
   const [toast, setToast] = useState({ show: false, message: '', type: 'info' })
   const [auditLogs, setAuditLogs] = useState({})
@@ -147,38 +145,41 @@ function TreasurerContributionsView() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!formData.userId || !formData.amount || !formData.date || !formData.type) {
+    const liftAmt = Number(formData.liftAmount) || 0
+    const aaAmt = Number(formData.aaAmount) || 0
+    const totalAmount = liftAmt + aaAmt
+
+    if (!formData.userId || !formData.date || !formData.type) {
       showToast('Please fill in all required fields', 'error')
       return
     }
-    if (isNaN(formData.amount) || Number(formData.amount) <= 0) {
-      showToast('Please enter a valid positive amount', 'error')
+    if (totalAmount <= 0) {
+      showToast('Please enter valid amounts for LIFT and/or Alumni Association', 'error')
       return
     }
-    // Validate percentages
-    if (Math.abs((formData.liftPercentage || 0) + (formData.aaPercentage || 0) - 100) > 0.01) {
-      showToast('LIFT and AA percentages must sum to 100%', 'error')
-      return
-    }
+
+    // Calculate percentages from amounts
+    const liftPercentage = (liftAmt / totalAmount) * 100
+    const aaPercentage = (aaAmt / totalAmount) * 100
+
     try {
       await api.post('/admin/contributions', {
         userId: formData.userId,
-        amount: Number(formData.amount),
+        amount: totalAmount,
         date: formData.date,
         notes: formData.notes,
         type: formData.type,
-        liftPercentage: formData.liftPercentage,
-        aaPercentage: formData.aaPercentage
+        liftPercentage: liftPercentage,
+        aaPercentage: aaPercentage
       })
       setShowModal(false)
       setFormData({
         userId: '',
-        amount: '',
+        liftAmount: '',
+        aaAmount: '',
         date: '',
         notes: '',
-        type: '',
-        liftPercentage: 50,
-        aaPercentage: 50
+        type: ''
       })
       fetchContributions()
       showToast('Contribution added successfully', 'success')
@@ -210,39 +211,37 @@ function TreasurerContributionsView() {
   const openEditModal = (contribution) => {
     setEditContribution(contribution)
     setEditForm({
-      amount: contribution.amount,
+      liftAmount: contribution.liftAmount || 0,
+      aaAmount: contribution.aaAmount || 0,
       date: new Date(contribution.date).toISOString().split('T')[0],
       notes: contribution.notes || '',
-      status: contribution.status,
-      liftPercentage: contribution.liftPercentage || 50,
-      aaPercentage: contribution.aaPercentage || 50
+      status: contribution.status
     })
   }
 
   const handleUpdate = async (e) => {
     e.preventDefault()
-    if (!editForm.amount || isNaN(editForm.amount) || Number(editForm.amount) <= 0) {
-      showToast('Please enter a valid positive amount', 'error')
+    const liftAmt = Number(editForm.liftAmount) || 0
+    const aaAmt = Number(editForm.aaAmount) || 0
+    const totalAmount = liftAmt + aaAmt
+
+    if (totalAmount <= 0) {
+      showToast('Please enter valid amounts for LIFT and/or Alumni Association', 'error')
       return
     }
-    // Only validate percentages for ADDITIONAL (BASIC uses system default)
-    if (editContribution.type === 'ADDITIONAL') {
-      if (Math.abs((editForm.liftPercentage || 0) + (editForm.aaPercentage || 0) - 100) > 0.01) {
-        showToast('LIFT and AA percentages must sum to 100%', 'error')
-        return
-      }
-    }
+
+    // Calculate percentages from amounts
+    const liftPercentage = (liftAmt / totalAmount) * 100
+    const aaPercentage = (aaAmt / totalAmount) * 100
+
     try {
       const dataToSend = {
-        amount: Number(editForm.amount),
+        amount: totalAmount,
         date: editForm.date,
         notes: editForm.notes,
-        status: editForm.status
-      }
-      // Only include split percentages for ADDITIONAL contributions
-      if (editContribution.type === 'ADDITIONAL') {
-        dataToSend.liftPercentage = editForm.liftPercentage
-        dataToSend.aaPercentage = editForm.aaPercentage
+        status: editForm.status,
+        liftPercentage: liftPercentage,
+        aaPercentage: aaPercentage
       }
       await api.put(`/admin/contributions/${editContribution.id}`, dataToSend)
       setEditContribution(null)
@@ -498,102 +497,55 @@ function TreasurerContributionsView() {
                 <label className="block text-sm font-medium mb-1">Type *</label>
                 <select
                   value={formData.type}
-                  onChange={(e) => {
-                    const newType = e.target.value
-                    // For BASIC: pre-fill with system default split
-                    // For ADDITIONAL: use 50-50 as starting point
-                    const defaultSplit = newType === 'BASIC' ? systemDefaultSplit : 50
-                    setFormData({
-                      ...formData,
-                      type: newType,
-                      liftPercentage: defaultSplit,
-                      aaPercentage: 100 - defaultSplit
-                    })
-                  }}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                   className="w-full p-2 border rounded"
                   required
                 >
                   <option value="">Select type</option>
-                  <option value="BASIC">Basic (uses default split)</option>
-                  <option value="ADDITIONAL">Additional (custom split)</option>
+                  <option value="BASIC">Basic</option>
+                  <option value="ADDITIONAL">Additional</option>
                 </select>
               </div>
 
               <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Amount (₹) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  className="w-full p-2 border rounded"
-                  placeholder="Enter amount"
-                  required
-                />
-              </div>
-
-              {formData.type && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1">
-                    Split Percentage *
-                    {formData.type === 'BASIC' && <span className="text-xs text-gray-500 ml-2">(using system default {systemDefaultSplit}% LIFT / {100 - systemDefaultSplit}% AA)</span>}
-                  </label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">LIFT %</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={formData.liftPercentage || 50}
-                        onChange={(e) => {
-                          const lift = Math.min(100, Math.max(0, Number(e.target.value) || 0))
-                          setFormData({
-                            ...formData,
-                            liftPercentage: lift,
-                            aaPercentage: 100 - lift
-                          })
-                        }}
-                        className="w-full p-2 border rounded"
-                        disabled={formData.type === 'BASIC'}
-                        required
-                      />
-                      {formData.type === 'BASIC' && <p className="text-xs text-gray-500 mt-1">Set by system default</p>}
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Alumni Association %</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={formData.aaPercentage || 50}
-                        onChange={(e) => {
-                          const aa = Math.min(100, Math.max(0, Number(e.target.value) || 0))
-                          setFormData({
-                            ...formData,
-                            aaPercentage: aa,
-                            liftPercentage: 100 - aa
-                          })
-                        }}
-                        className="w-full p-2 border rounded"
-                        disabled={formData.type === 'BASIC'}
-                        required
-                      />
-                      {formData.type === 'BASIC' && <p className="text-xs text-gray-500 mt-1">Set by system default</p>}
+                <label className="block text-sm font-medium mb-1">Contribution Amounts *</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">LIFT Amount (₹)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.liftAmount}
+                      onChange={(e) => setFormData({ ...formData, liftAmount: e.target.value })}
+                      className="w-full p-2 border rounded"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Alumni Association Amount (₹)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.aaAmount}
+                      onChange={(e) => setFormData({ ...formData, aaAmount: e.target.value })}
+                      className="w-full p-2 border rounded"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                {(formData.liftAmount || formData.aaAmount) && (
+                  <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
+                    <div className="flex justify-between">
+                      <span className="font-medium">Total: ₹{((Number(formData.liftAmount) || 0) + (Number(formData.aaAmount) || 0)).toLocaleString()}</span>
+                      <span className="text-gray-500">
+                        ({((Number(formData.liftAmount) || 0) / ((Number(formData.liftAmount) || 0) + (Number(formData.aaAmount) || 0)) * 100 || 0).toFixed(1)}% LIFT / {((Number(formData.aaAmount) || 0) / ((Number(formData.liftAmount) || 0) + (Number(formData.aaAmount) || 0)) * 100 || 0).toFixed(1)}% AA)
+                      </span>
                     </div>
                   </div>
-                  {formData.amount && (
-                    <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
-                      <div className="text-xs text-gray-600 mb-1">Preview:</div>
-                      <div className="flex justify-between">
-                        <span>LIFT: ₹{(Number(formData.amount) * (formData.liftPercentage || 0) / 100).toFixed(2)}</span>
-                        <span>AA: ₹{(Number(formData.amount) * (formData.aaPercentage || 0) / 100).toFixed(2)}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-1">Date *</label>
                 <input
@@ -621,12 +573,11 @@ function TreasurerContributionsView() {
                     setShowModal(false)
                     setFormData({
                       userId: '',
-                      amount: '',
+                      liftAmount: '',
+                      aaAmount: '',
                       date: '',
                       notes: '',
-                      type: '',
-                      liftPercentage: 50,
-                      aaPercentage: 50
+                      type: ''
                     })
                   }}
                   className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
@@ -655,72 +606,40 @@ function TreasurerContributionsView() {
             </p>
             <form onSubmit={handleUpdate}>
               <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Amount (₹) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editForm.amount}
-                  onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
-                  className="w-full p-2 border rounded"
-                  required
-                />
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">
-                  Split Percentage *
-                  {editContribution?.type === 'BASIC' && <span className="text-xs text-gray-500 ml-2">(using system default {systemDefaultSplit}% LIFT / {100 - systemDefaultSplit}% AA)</span>}
-                </label>
+                <label className="block text-sm font-medium mb-1">Contribution Amounts *</label>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">LIFT %</label>
+                    <label className="block text-xs text-gray-600 mb-1">LIFT Amount (₹)</label>
                     <input
                       type="number"
+                      step="0.01"
                       min="0"
-                      max="100"
-                      value={editForm.liftPercentage || 50}
-                      onChange={(e) => {
-                        const lift = Math.min(100, Math.max(0, Number(e.target.value) || 0))
-                        setEditForm({
-                          ...editForm,
-                          liftPercentage: lift,
-                          aaPercentage: 100 - lift
-                        })
-                      }}
+                      value={editForm.liftAmount}
+                      onChange={(e) => setEditForm({ ...editForm, liftAmount: e.target.value })}
                       className="w-full p-2 border rounded"
-                      disabled={editContribution?.type === 'BASIC'}
-                      required
+                      placeholder="0.00"
                     />
-                    {editContribution?.type === 'BASIC' && <p className="text-xs text-gray-500 mt-1">Set by system default</p>}
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Alumni Association %</label>
+                    <label className="block text-xs text-gray-600 mb-1">Alumni Association Amount (₹)</label>
                     <input
                       type="number"
+                      step="0.01"
                       min="0"
-                      max="100"
-                      value={editForm.aaPercentage || 50}
-                      onChange={(e) => {
-                        const aa = Math.min(100, Math.max(0, Number(e.target.value) || 0))
-                        setEditForm({
-                          ...editForm,
-                          aaPercentage: aa,
-                          liftPercentage: 100 - aa
-                        })
-                      }}
+                      value={editForm.aaAmount}
+                      onChange={(e) => setEditForm({ ...editForm, aaAmount: e.target.value })}
                       className="w-full p-2 border rounded"
-                      disabled={editContribution?.type === 'BASIC'}
-                      required
+                      placeholder="0.00"
                     />
-                    {editContribution?.type === 'BASIC' && <p className="text-xs text-gray-500 mt-1">Set by system default</p>}
                   </div>
                 </div>
-                {editForm.amount && (
+                {(editForm.liftAmount || editForm.aaAmount) && (
                   <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
-                    <div className="text-xs text-gray-600 mb-1">Preview:</div>
                     <div className="flex justify-between">
-                      <span>LIFT: ₹{(Number(editForm.amount) * (editForm.liftPercentage || 0) / 100).toFixed(2)}</span>
-                      <span>AA: ₹{(Number(editForm.amount) * (editForm.aaPercentage || 0) / 100).toFixed(2)}</span>
+                      <span className="font-medium">Total: ₹{((Number(editForm.liftAmount) || 0) + (Number(editForm.aaAmount) || 0)).toLocaleString()}</span>
+                      <span className="text-gray-500">
+                        ({((Number(editForm.liftAmount) || 0) / ((Number(editForm.liftAmount) || 0) + (Number(editForm.aaAmount) || 0)) * 100 || 0).toFixed(1)}% LIFT / {((Number(editForm.aaAmount) || 0) / ((Number(editForm.liftAmount) || 0) + (Number(editForm.aaAmount) || 0)) * 100 || 0).toFixed(1)}% AA)
+                      </span>
                     </div>
                   </div>
                 )}

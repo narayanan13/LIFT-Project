@@ -15,12 +15,11 @@ export default function BulkContributions() {
     return {
       id: Date.now() + Math.random(),
       userId: '',
-      amount: '',
+      liftAmount: '',
+      aaAmount: '',
       date: new Date().toISOString().split('T')[0],
       notes: '',
-      type: 'BASIC',
-      liftPercentage: 50,
-      aaPercentage: 50
+      type: 'BASIC'
     }
   }
 
@@ -43,12 +42,6 @@ export default function BulkContributions() {
       const res = await api.get('/admin/settings/basic_contribution_split_lift')
       const split = parseFloat(res.data.value)
       setSystemDefaultSplit(split)
-      // Update existing entries with system default
-      setEntries(prev => prev.map(e => ({
-        ...e,
-        liftPercentage: e.type === 'BASIC' ? split : e.liftPercentage,
-        aaPercentage: e.type === 'BASIC' ? 100 - split : e.aaPercentage
-      })))
     } catch (err) {
       console.error('Failed to fetch split setting')
     }
@@ -61,8 +54,6 @@ export default function BulkContributions() {
 
   const addEntry = () => {
     const newEntry = createEmptyEntry()
-    newEntry.liftPercentage = systemDefaultSplit
-    newEntry.aaPercentage = 100 - systemDefaultSplit
     setEntries([...entries, newEntry])
   }
 
@@ -77,47 +68,19 @@ export default function BulkContributions() {
   const updateEntry = (id, field, value) => {
     setEntries(entries.map(e => {
       if (e.id !== id) return e
-
-      const updated = { ...e, [field]: value }
-
-      // Handle type change
-      if (field === 'type') {
-        if (value === 'BASIC') {
-          updated.liftPercentage = systemDefaultSplit
-          updated.aaPercentage = 100 - systemDefaultSplit
-        } else {
-          updated.liftPercentage = 50
-          updated.aaPercentage = 50
-        }
-      }
-
-      // Handle percentage changes
-      if (field === 'liftPercentage') {
-        const lift = Math.min(100, Math.max(0, Number(value) || 0))
-        updated.liftPercentage = lift
-        updated.aaPercentage = 100 - lift
-      }
-      if (field === 'aaPercentage') {
-        const aa = Math.min(100, Math.max(0, Number(value) || 0))
-        updated.aaPercentage = aa
-        updated.liftPercentage = 100 - aa
-      }
-
-      return updated
+      return { ...e, [field]: value }
     }))
   }
 
   const calculateStats = () => {
-    const validEntries = entries.filter(e => e.userId && e.amount && Number(e.amount) > 0)
-    const totalAmount = validEntries.reduce((sum, e) => sum + Number(e.amount || 0), 0)
-    const totalLift = validEntries.reduce((sum, e) => {
-      const amount = Number(e.amount || 0)
-      return sum + (amount * (e.liftPercentage || 0) / 100)
-    }, 0)
-    const totalAA = validEntries.reduce((sum, e) => {
-      const amount = Number(e.amount || 0)
-      return sum + (amount * (e.aaPercentage || 0) / 100)
-    }, 0)
+    const validEntries = entries.filter(e => {
+      const liftAmt = Number(e.liftAmount) || 0
+      const aaAmt = Number(e.aaAmount) || 0
+      return e.userId && (liftAmt + aaAmt) > 0
+    })
+    const totalLift = validEntries.reduce((sum, e) => sum + (Number(e.liftAmount) || 0), 0)
+    const totalAA = validEntries.reduce((sum, e) => sum + (Number(e.aaAmount) || 0), 0)
+    const totalAmount = totalLift + totalAA
 
     return {
       totalEntries: entries.length,
@@ -131,12 +94,16 @@ export default function BulkContributions() {
   const validateEntries = () => {
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i]
+      const liftAmt = Number(e.liftAmount) || 0
+      const aaAmt = Number(e.aaAmount) || 0
+      const totalAmount = liftAmt + aaAmt
+
       if (!e.userId) {
         showToast(`Entry ${i + 1}: Please select a user`, 'error')
         return false
       }
-      if (!e.amount || isNaN(e.amount) || Number(e.amount) <= 0) {
-        showToast(`Entry ${i + 1}: Please enter a valid amount`, 'error')
+      if (totalAmount <= 0) {
+        showToast(`Entry ${i + 1}: Please enter valid amounts for LIFT and/or Alumni Association`, 'error')
         return false
       }
       if (!e.date) {
@@ -147,12 +114,6 @@ export default function BulkContributions() {
         showToast(`Entry ${i + 1}: Please select a type`, 'error')
         return false
       }
-      if (e.type === 'ADDITIONAL') {
-        if (Math.abs((e.liftPercentage || 0) + (e.aaPercentage || 0) - 100) > 0.01) {
-          showToast(`Entry ${i + 1}: LIFT and AA percentages must sum to 100%`, 'error')
-          return false
-        }
-      }
     }
     return true
   }
@@ -162,15 +123,23 @@ export default function BulkContributions() {
 
     setLoading(true)
     try {
-      const contributions = entries.map(e => ({
-        userId: e.userId,
-        amount: Number(e.amount),
-        date: e.date,
-        notes: e.notes || null,
-        type: e.type,
-        liftPercentage: e.liftPercentage,
-        aaPercentage: e.aaPercentage
-      }))
+      const contributions = entries.map(e => {
+        const liftAmt = Number(e.liftAmount) || 0
+        const aaAmt = Number(e.aaAmount) || 0
+        const totalAmount = liftAmt + aaAmt
+        const liftPercentage = (liftAmt / totalAmount) * 100
+        const aaPercentage = (aaAmt / totalAmount) * 100
+
+        return {
+          userId: e.userId,
+          amount: totalAmount,
+          date: e.date,
+          notes: e.notes || null,
+          type: e.type,
+          liftPercentage: liftPercentage,
+          aaPercentage: aaPercentage
+        }
+      })
 
       const res = await api.post('/admin/contributions/bulk', { contributions })
       showToast(`Successfully created ${res.data.created} contributions`, 'success')
@@ -257,9 +226,9 @@ export default function BulkContributions() {
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">#</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">User *</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Type *</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Amount (₹) *</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">LIFT %</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">AA %</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">LIFT (₹)</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">AA (₹)</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Total</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Date *</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Notes</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Actions</th>
@@ -296,8 +265,8 @@ export default function BulkContributions() {
                       type="number"
                       min="0"
                       step="0.01"
-                      value={entry.amount}
-                      onChange={(e) => updateEntry(entry.id, 'amount', e.target.value)}
+                      value={entry.liftAmount}
+                      onChange={(e) => updateEntry(entry.id, 'liftAmount', e.target.value)}
                       className="w-full p-2 border rounded text-sm min-w-[100px]"
                       placeholder="0.00"
                     />
@@ -306,23 +275,15 @@ export default function BulkContributions() {
                     <input
                       type="number"
                       min="0"
-                      max="100"
-                      value={entry.liftPercentage}
-                      onChange={(e) => updateEntry(entry.id, 'liftPercentage', e.target.value)}
-                      className="w-full p-2 border rounded text-sm w-20"
-                      disabled={entry.type === 'BASIC'}
+                      step="0.01"
+                      value={entry.aaAmount}
+                      onChange={(e) => updateEntry(entry.id, 'aaAmount', e.target.value)}
+                      className="w-full p-2 border rounded text-sm min-w-[100px]"
+                      placeholder="0.00"
                     />
                   </td>
-                  <td className="px-3 py-2">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={entry.aaPercentage}
-                      onChange={(e) => updateEntry(entry.id, 'aaPercentage', e.target.value)}
-                      className="w-full p-2 border rounded text-sm w-20"
-                      disabled={entry.type === 'BASIC'}
-                    />
+                  <td className="px-3 py-2 text-sm font-medium text-green-600">
+                    ₹{((Number(entry.liftAmount) || 0) + (Number(entry.aaAmount) || 0)).toLocaleString()}
                   </td>
                   <td className="px-3 py-2">
                     <input
@@ -369,7 +330,7 @@ export default function BulkContributions() {
 
       {/* Help Text */}
       <div className="mt-4 text-sm text-gray-500">
-        <p>* Required fields. BASIC contributions use the system default split ({systemDefaultSplit}% LIFT / {100 - systemDefaultSplit}% AA).</p>
+        <p>* Required fields. Enter amounts for LIFT and/or Alumni Association - percentages are calculated automatically.</p>
         <p>All contributions will be automatically approved upon save.</p>
       </div>
     </div>
