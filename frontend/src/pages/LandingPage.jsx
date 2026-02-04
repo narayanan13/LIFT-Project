@@ -39,11 +39,7 @@ const LandingPage = () => {
         {/* Hero Section */}
         <section style={{backgroundColor: 'rgba(246, 175, 82, 1)'}}>
           <div className="max-w-7xl mx-auto px-4 py-20 text-center">
-            <h2 className="text-4xl font-bold text-white animate-highlight">Together We Give Back</h2>
-            <p className="mt-4 text-lg text-deep-red">
-              A transparent platform for LIFT alumni to contribute, track expenses,
-              and support new students — all in one place.
-            </p>
+            <h2 className="text-4xl font-bold text-white animate-highlight">Carry It Forward Together</h2>
             <div className="mt-6">
               <a
                 href="/login"
