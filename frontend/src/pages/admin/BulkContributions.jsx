@@ -31,7 +31,7 @@ export default function BulkContributions() {
   const fetchUsers = async () => {
     try {
       const res = await api.get('/admin/users')
-      setUsers(res.data.filter(u => u.role === 'ALUMNI' && u.active))
+      setUsers(res.data.filter(u => u.active))
     } catch (err) {
       showToast('Failed to fetch users', 'error')
     }

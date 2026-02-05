@@ -99,7 +99,7 @@ function TreasurerContributionsView() {
   const fetchUsers = async () => {
     try {
       const res = await api.get('/admin/users')
-      setUsers(res.data.filter(u => u.role === 'ALUMNI'))
+      setUsers(res.data.filter(u => u.active))
     } catch (err) {
       console.error('Failed to fetch users')
     }
