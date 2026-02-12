@@ -2,33 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api'
 import { FaPlus, FaEdit, FaCheck, FaTimes, FaList } from 'react-icons/fa'
-import AuditLogTable from '../../components/AuditLogTable'
+import ContributionHistoryTable from '../../components/ContributionHistoryTable'
 import AlumniContributions from '../alumni/AlumniContributions'
-
-function StatusBadge({ status }) {
-  const styles = {
-    PENDING: 'bg-yellow-100 text-yellow-800',
-    APPROVED: 'bg-green-100 text-green-800',
-    REJECTED: 'bg-red-100 text-red-800'
-  }
-  return (
-    <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status]}`}>
-      {status}
-    </span>
-  )
-}
-
-function TypeBadge({ type }) {
-  const styles = {
-    BASIC: 'bg-indigo-100 text-indigo-800',
-    ADDITIONAL: 'bg-teal-100 text-teal-800'
-  }
-  return (
-    <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[type] || 'bg-gray-100'}`}>
-      {type}
-    </span>
-  )
-}
 
 export default function AdminContributions() {
   const user = JSON.parse(localStorage.getItem('user'))
@@ -371,107 +346,19 @@ function TreasurerContributionsView() {
       </div>
 
       {/* Contributions Table */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full bg-white shadow-sm rounded">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">User</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Amount</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Type</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Split</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Date</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Status</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Notes</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredList.length === 0 ? (
-              <tr>
-                <td colSpan="8" className="px-4 py-8 text-center text-gray-500">
-                  No contributions found
-                </td>
-              </tr>
-            ) : (
-              filteredList.map(c => {
-                return (
-                  <React.Fragment key={c.id}>
-                    <tr className="border-t hover:bg-gray-50">
-                      <td className="px-4 py-3">{c.user?.name || 'Unknown'}</td>
-                      <td className="px-4 py-3 font-semibold text-green-600">₹{c.amount.toLocaleString()}</td>
-                      <td className="px-4 py-3"><TypeBadge type={c.type} /></td>
-                      <td className="px-4 py-3">
-                        <div className="text-xs space-y-1">
-                          <div className="flex items-center gap-1">
-                            <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                            <span>LIFT: ₹{(c.liftAmount || 0).toLocaleString()} ({c.liftPercentage || 0}%)</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                            <span>AA: ₹{(c.aaAmount || 0).toLocaleString()} ({c.aaPercentage || 0}%)</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">{new Date(c.date).toLocaleDateString()}</td>
-                      <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
-                      <td className="px-4 py-3 text-gray-600">{c.notes || '-'}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center space-x-2">
-                          {c.status === 'PENDING' && (
-                            <>
-                              <button
-                                onClick={() => handleApprove(c.id)}
-                                className="p-2 text-green-600 hover:bg-green-100 rounded"
-                                title="Approve"
-                              >
-                                <FaCheck />
-                              </button>
-                              <button
-                                onClick={() => handleReject(c.id)}
-                                className="p-2 text-red-600 hover:bg-red-100 rounded"
-                                title="Reject"
-                              >
-                                <FaTimes />
-                              </button>
-                            </>
-                          )}
-                          <button
-                            onClick={() => openEditModal(c)}
-                            className="p-2 text-blue-600 hover:bg-blue-100 rounded"
-                            title="Edit"
-                          >
-                            <FaEdit />
-                          </button>
-                          <button
-                            onClick={() => toggleAuditHistory(c.id)}
-                            className="px-3 py-1 bg-purple-100 text-purple-600 rounded text-sm hover:bg-purple-200"
-                            title="View History"
-                          >
-                            {expandedAudit === c.id ? 'Hide History' : 'View History'}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    {expandedAudit === c.id && (
-                      <tr className="border-t border-gray-200">
-                        <td colSpan="8" className="px-4 py-4 bg-gray-50">
-                          {loadingAudit && expandedAudit === c.id ? (
-                            <div className="text-center py-4">
-                              <span className="text-gray-500">Loading audit history...</span>
-                            </div>
-                          ) : (
-                            <AuditLogTable auditLogs={auditLogs[c.id] || []} />
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                )
-              })
-              )}
-           </tbody>
-         </table>
-       </div>
+      <ContributionHistoryTable
+        contributions={filteredList}
+        isAdmin={true}
+        onApprove={handleApprove}
+        onReject={handleReject}
+        onEdit={openEditModal}
+        onToggleAudit={toggleAuditHistory}
+        auditLogs={auditLogs}
+        expandedAudit={expandedAudit}
+        loadingAudit={loadingAudit}
+        showFilters={false}
+        showUserColumn={true}
+      />
 
       {/* Add Contribution Modal */}
       {showModal && (

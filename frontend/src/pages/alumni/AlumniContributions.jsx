@@ -1,46 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../api';
 import { FaHistory, FaPlus } from 'react-icons/fa';
-import ToastNotification from '../../components/ToastNotification';
-
-function StatusBadge({ status }) {
-  const styles = {
-    PENDING: 'bg-yellow-100 text-yellow-800',
-    APPROVED: 'bg-green-100 text-green-800',
-    REJECTED: 'bg-red-100 text-red-800'
-  };
-  return (
-    <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status]}`}>
-      {status}
-    </span>
-  );
-}
-
-function TypeBadge({ type }) {
-  const styles = {
-    BASIC: 'bg-indigo-100 text-indigo-800',
-    ADDITIONAL: 'bg-teal-100 text-teal-800'
-  };
-  return (
-    <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[type] || 'bg-gray-100'}`}>
-      {type}
-    </span>
-  );
-}
+import ContributionHistoryTable from '../../components/ContributionHistoryTable';
+import AddContributionModal from '../../components/AddContributionModal';
 
 export default function AlumniContributions() {
   const [contribs, setContribs] = useState({ total: 0, pendingTotal: 0, liftTotal: 0, aaTotal: 0, contributions: [] });
   const [loading, setLoading] = useState(true);
-
-  const [newLiftAmount, setNewLiftAmount] = useState('');
-  const [newAaAmount, setNewAaAmount] = useState('');
-  const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
-  const [newType, setNewType] = useState('');
-  const [newNotes, setNewNotes] = useState('');
-  const [adding, setAdding] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastType, setToastType] = useState('error');
-  const [toastVisible, setToastVisible] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
     fetchContributions();
@@ -56,56 +23,6 @@ export default function AlumniContributions() {
     } finally {
       setLoading(false);
     }
-  }
-
-  async function handleAddContribution(e) {
-    e.preventDefault();
-    const liftAmt = Number(newLiftAmount) || 0;
-    const aaAmt = Number(newAaAmount) || 0;
-    const totalAmount = liftAmt + aaAmt;
-
-    if (!newType) {
-      showToast('Please select a contribution type', 'error');
-      return;
-    }
-    if (totalAmount <= 0) {
-      showToast('Please enter valid amounts for LIFT and/or Alumni Association', 'error');
-      return;
-    }
-
-    // Calculate percentages from amounts
-    const liftPercentage = (liftAmt / totalAmount) * 100;
-    const aaPercentage = (aaAmt / totalAmount) * 100;
-
-    setAdding(true);
-    try {
-      const dataToSend = {
-        amount: totalAmount,
-        date: newDate,
-        type: newType,
-        notes: newNotes || undefined,
-        liftPercentage: liftPercentage,
-        aaPercentage: aaPercentage
-      };
-      await api.post('/alumni/contributions', dataToSend);
-      showToast('Contribution submitted! It will appear once approved by an admin.', 'success');
-      setNewLiftAmount('');
-      setNewAaAmount('');
-      setNewDate(new Date().toISOString().split('T')[0]);
-      setNewType('');
-      setNewNotes('');
-      await fetchContributions();
-    } catch (err) {
-      showToast(err.response?.data?.error || 'Failed to add contribution', 'error');
-    } finally {
-      setAdding(false);
-    }
-  }
-
-  function showToast(message, type = 'info') {
-    setToastMessage(message);
-    setToastType(type);
-    setToastVisible(true);
   }
 
   // Calculate monthly and yearly contribution sums (only approved)
@@ -174,105 +91,15 @@ export default function AlumniContributions() {
           </div>
         ) : (
           <>
-            {/* Contribution addition form */}
-            <div className="mb-8 p-6 bg-white rounded-2xl shadow-sm max-w-lg">
-              <div className="flex items-center mb-4">
-                <FaPlus className="text-deep-red mr-2" />
-                <h2 className="text-xl font-semibold">Add New Contribution</h2>
-              </div>
-              <p className="text-sm text-gray-500 mb-4">
-                Your contribution will be reviewed by an admin before it's approved.
-              </p>
-              <form onSubmit={handleAddContribution} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Type *</label>
-                  <select
-                    value={newType}
-                    onChange={e => setNewType(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
-                    disabled={adding}
-                  >
-                    <option value="">Select type</option>
-                    <option value="BASIC">Basic</option>
-                    <option value="ADDITIONAL">Additional</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Contribution Amounts *</label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">LIFT Amount (₹)</label>
-                      <input
-                        type="number"
-                        placeholder="0.00"
-                        value={newLiftAmount}
-                        min={0}
-                        step="0.01"
-                        onChange={e => setNewLiftAmount(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
-                        disabled={adding}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Alumni Association Amount (₹)</label>
-                      <input
-                        type="number"
-                        placeholder="0.00"
-                        value={newAaAmount}
-                        min={0}
-                        step="0.01"
-                        onChange={e => setNewAaAmount(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
-                        disabled={adding}
-                      />
-                    </div>
-                  </div>
-                  {(newLiftAmount || newAaAmount) && (
-                    <div className="mt-2 p-3 bg-gray-50 rounded-lg border">
-                      <div className="flex justify-between text-sm">
-                        <span className="font-medium">Total: ₹{((Number(newLiftAmount) || 0) + (Number(newAaAmount) || 0)).toLocaleString()}</span>
-                        <span className="text-gray-500">
-                          ({((Number(newLiftAmount) || 0) / ((Number(newLiftAmount) || 0) + (Number(newAaAmount) || 0)) * 100 || 0).toFixed(1)}% LIFT / {((Number(newAaAmount) || 0) / ((Number(newLiftAmount) || 0) + (Number(newAaAmount) || 0)) * 100 || 0).toFixed(1)}% AA)
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                  <input
-                    type="date"
-                    value={newDate}
-                    onChange={e => setNewDate(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
-                    disabled={adding}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
-                  <textarea
-                    value={newNotes}
-                    onChange={e => setNewNotes(e.target.value)}
-                    rows={2}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-deep-red focus:border-transparent"
-                    placeholder="Add any notes..."
-                    disabled={adding}
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={adding}
-                  className="w-full bg-deep-red hover:bg-warm-red text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
-                >
-                  {adding ? 'Submitting...' : 'Submit Contribution'}
-                </button>
-              </form>
-              <ToastNotification
-                message={toastMessage}
-                type={toastType}
-                visible={toastVisible}
-                onClose={() => setToastVisible(false)}
-              />
+            {/* Add Contribution Button */}
+            <div className="mb-8">
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="inline-flex items-center px-6 py-3 bg-deep-red hover:bg-warm-red text-white rounded-lg font-medium transition-colors"
+              >
+                <FaPlus className="mr-2" />
+                Add Contribution
+              </button>
             </div>
 
             {/* Contribution history */}
@@ -281,40 +108,22 @@ export default function AlumniContributions() {
                 <FaHistory className="text-warm-red mr-2" />
                 <h2 className="text-xl font-semibold text-deep-red">Contribution History</h2>
               </div>
-              <div className="space-y-3">
-                {contribs.contributions.length > 0 ? (
-                  contribs.contributions.map(c => (
-                    <div key={c.id} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center space-x-4">
-                          <div className="font-semibold text-lg text-deep-red">₹{c.amount.toLocaleString()}</div>
-                          <TypeBadge type={c.type} />
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <div className="text-sm text-gray-500">{new Date(c.date).toLocaleDateString()}</div>
-                          <StatusBadge status={c.status} />
-                        </div>
-                      </div>
-                      <div className="mt-2 text-xs text-gray-500 flex gap-4">
-                        <span className="flex items-center gap-1">
-                          <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                          LIFT: ₹{(c.liftAmount || 0).toLocaleString()} ({c.liftPercentage || 0}%)
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                          AA: ₹{(c.aaAmount || 0).toLocaleString()} ({c.aaPercentage || 0}%)
-                        </span>
-                      </div>
-                      {c.notes && <div className="mt-2 text-sm text-gray-600">{c.notes}</div>}
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-gray-500 text-center py-8">No contributions yet. Add your first contribution above!</p>
-                )}
-              </div>
+              <ContributionHistoryTable
+                contributions={contribs.contributions}
+                isAdmin={false}
+                showUserColumn={false}
+                showFilters={true}
+              />
             </div>
           </>
         )}
+
+        {/* Add Contribution Modal */}
+        <AddContributionModal
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          onSuccess={fetchContributions}
+        />
       </div>
     </div>
   );
