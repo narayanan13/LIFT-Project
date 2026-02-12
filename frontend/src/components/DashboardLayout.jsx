@@ -59,7 +59,7 @@ export default function DashboardLayout({ links, role, children }){
 
   return (
       <div className="min-h-screen flex flex-col">
-        <header className="bg-white border-b px-6 py-4 flex justify-between items-center">
+        <header className="sticky top-0 z-50 bg-white border-b shadow-sm px-6 py-4 flex justify-between items-center">
           <div className="font-bold text-xl text-deep-red">LIFT Alumni Hub</div>
           <div className="flex items-center space-x-4">
             <span className="text-bright-orange font-bold">Welcome, {user?.name || user?.email}</span>
