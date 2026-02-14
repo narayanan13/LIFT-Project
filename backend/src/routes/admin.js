@@ -388,6 +388,20 @@ router.put('/contributions/:id/reject', authRequired, requireRole('ADMIN'), requ
   }
 });
 
+router.delete('/contributions/:id', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const contribution = await prisma.contribution.findUnique({ where: { id } });
+    if (!contribution) return res.status(404).json({ error: 'Contribution not found' });
+
+    await prisma.auditLog.deleteMany({ where: { entityType: 'CONTRIBUTION', entityId: id } });
+    await prisma.contribution.delete({ where: { id } });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to delete contribution', detail: e.message });
+  }
+});
+
 router.get('/contributions/pending/count', authRequired, requireRole('ADMIN'), requirePosition('TREASURER'), async (req, res) => {
   const count = await prisma.contribution.count({ where: { status: 'PENDING' } });
   res.json({ count });

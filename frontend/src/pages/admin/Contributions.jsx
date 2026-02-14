@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api'
-import { FaPlus, FaEdit, FaCheck, FaTimes, FaList } from 'react-icons/fa'
+import { FaPlus, FaList } from 'react-icons/fa'
 import ContributionHistoryTable from '../../components/ContributionHistoryTable'
 import AlumniContributions from '../alumni/AlumniContributions'
 
@@ -160,6 +160,17 @@ function TreasurerContributionsView() {
       showToast('Contribution added successfully', 'success')
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to add contribution', 'error')
+    }
+  }
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this contribution? This action cannot be undone.')) return
+    try {
+      await api.delete(`/admin/contributions/${id}`)
+      fetchContributions()
+      showToast('Contribution deleted successfully', 'success')
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Failed to delete contribution', 'error')
     }
   }
 
@@ -346,12 +357,14 @@ function TreasurerContributionsView() {
       </div>
 
       {/* Contributions Table */}
+
       <ContributionHistoryTable
         contributions={filteredList}
         isAdmin={true}
         onApprove={handleApprove}
         onReject={handleReject}
         onEdit={openEditModal}
+        onDelete={handleDelete}
         onToggleAudit={toggleAuditHistory}
         auditLogs={auditLogs}
         expandedAudit={expandedAudit}

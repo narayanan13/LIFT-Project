@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react'
-import { FaCheck, FaTimes, FaEdit, FaHistory, FaChevronDown, FaChevronUp } from 'react-icons/fa'
+import { FaCheck, FaTimes, FaEdit, FaTrash, FaHistory, FaChevronDown, FaChevronUp } from 'react-icons/fa'
 import AuditLogTable from './AuditLogTable'
 
 function StatusBadge({ status }) {
@@ -35,7 +35,7 @@ export default function ContributionHistoryTable({
   onApprove,
   onReject,
   onEdit,
-  onViewHistory,
+  onDelete,
   auditLogs = {},
   expandedAudit = null,
   onToggleAudit,
@@ -272,7 +272,16 @@ export default function ContributionHistoryTable({
                               <FaEdit size={14} />
                             </button>
                           )}
-                          {onViewHistory && (
+                          {onDelete && (
+                            <button
+                              onClick={() => onDelete(contribution.id)}
+                              className="p-2 text-red-600 hover:bg-red-100 rounded transition-colors"
+                              title="Delete"
+                            >
+                              <FaTrash size={14} />
+                            </button>
+                          )}
+                          {onToggleAudit && (
                             <button
                               onClick={() => onToggleAudit(contribution.id)}
                               className="flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-600 rounded text-sm hover:bg-purple-200 transition-colors"
