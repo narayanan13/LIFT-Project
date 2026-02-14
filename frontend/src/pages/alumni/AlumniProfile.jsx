@@ -4,7 +4,7 @@ import { FaUser, FaEdit, FaPlus, FaBriefcase, FaTrash, FaLinkedin, FaGraduationC
 import ToastNotification from '../../components/ToastNotification';
 import LocationSelector from '../../components/LocationSelector';
 
-export default function AlumniProfile() {
+export default function AlumniProfile({ hidePageHeader = false }) {
   const [profile, setProfile] = useState(null);
   const [hasProfile, setHasProfile] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -230,12 +230,14 @@ export default function AlumniProfile() {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="container mx-auto px-6 py-8 bg-transparent">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gradient mb-2">My Profile</h1>
-          <p className="text-soft-peach">Manage your alumni profile and career history</p>
-        </div>
+    <div className={hidePageHeader ? '' : 'min-h-screen'}>
+      <div className={hidePageHeader ? '' : 'container mx-auto px-6 py-8 bg-transparent'}>
+        {!hidePageHeader && (
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold text-gradient mb-2">My Profile</h1>
+            <p className="text-soft-peach">Manage your alumni profile and career history</p>
+          </div>
+        )}
 
         {!hasProfile ? (
           // No profile - show create prompt

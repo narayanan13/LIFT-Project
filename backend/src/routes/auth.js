@@ -134,4 +134,54 @@ router.put('/change-password', authRequired, async (req, res) => {
   }
 });
 
+// Get own profile info (any authenticated user)
+router.get('/me', authRequired, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ id: user.id, name: user.name, email: user.email, role: user.role, officePosition: user.officePosition, hasGoogleId: !!user.googleId });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// Update own profile (any authenticated user)
+const updateProfileSchema = Joi.object({
+  name: Joi.string().min(1).optional(),
+  email: Joi.string().email().optional()
+}).min(1);
+
+router.put('/profile', authRequired, async (req, res) => {
+  const { error, value } = updateProfileSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.details[0].message });
+
+  const { name, email } = value;
+
+  try {
+    // If email is being changed, check it's not already taken
+    if (email && email !== req.user.email) {
+      const existing = await prisma.user.findUnique({ where: { email } });
+      if (existing) return res.status(400).json({ error: 'Email is already in use' });
+    }
+
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: updateData
+    });
+
+    // Return updated user info (same shape as login response)
+    const updatedToken = signJwt({ id: user.id, role: user.role, email: user.email, name: user.name, officePosition: user.officePosition });
+    res.json({
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, officePosition: user.officePosition, hasGoogleId: !!user.googleId },
+      token: updatedToken
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
 export default router;

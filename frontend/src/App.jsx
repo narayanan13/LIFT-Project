@@ -22,6 +22,7 @@ import AlumniExpenses from './pages/alumni/AlumniExpenses'
 import AlumniMeetings from './pages/alumni/AlumniMeetings'
 import AlumniActionItems from './pages/alumni/AlumniActionItems'
 import AlumniProfile from './pages/alumni/AlumniProfile'
+import AdminProfile from './pages/admin/AdminProfile'
 import AlumniDirectory from './pages/alumni/AlumniDirectory'
 import ChangePassword from './pages/ChangePassword'
 
@@ -54,7 +55,7 @@ export default function App() {
           <Route path="reports" element={<AdminReports />} />
           <Route path="meetings" element={<AdminMeetings />} />
           <Route path="settings" element={<AdminSettings />} />
-          <Route path="profile" element={<AlumniProfile />} />
+          <Route path="profile" element={<AdminProfile />} />
           <Route path="directory" element={<AlumniDirectory />} />
           <Route path="change-password" element={<ChangePassword />} />
         </Route>

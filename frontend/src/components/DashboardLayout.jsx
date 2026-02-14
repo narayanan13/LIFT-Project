@@ -30,6 +30,7 @@ export default function DashboardLayout({ links, role, children }){
 
   const adminLinks = [
     { to: '/admin/overview', label: 'Overview' },
+    { to: '/admin/profile', label: 'My Profile' },
     { to: '/admin/users', label: 'Users' },
     { to: '/admin/directory', label: 'Alumni Directory' },
     { to: '/admin/contributions', label: 'Contributions' },
